@@ -31,6 +31,7 @@ const (
     StatOutcomeDataSize = 5
     StatWorkerRunTime = 6
     StatWorkerLoad = 7
+    StatBusyCount = 8
 )
 
 // statistic
@@ -43,6 +44,7 @@ func statItemName(itemPosition int) string {
         case StatOutcomeDataSize: return "Outcome data size (b)"
         case StatWorkerRunTime: return "In worker sum time of handler (sec)"
         case StatWorkerLoad: return "Worker load (% of full time)"
+        case StatBusyCount: return "Method busy hits"
         default: return "unknown"
     }
 }
@@ -161,13 +163,7 @@ func (stat *RlStatistic) Run(server *RlServer) {
     (*stat).used = options.Statistic
     (*stat).SetActive(options.Statistic)
     statItems := make(map[int]StatValueType)
-    statItems[StatIncomeDataSize] = 0
-    statItems[StatOutcomeDataSize] = 0
-    statItems[StatIncomeDataStreamVolume] = 0
-    statItems[StatBackRequestToBuffer] = 0
-    statItems[StatConnectionCount] = 0
-    statItems[StatWorkerLoad] = 0
-    statItems[StatWorkerRunTime] = 0
+
     (*stat).items = statItems
     if options.Statistic {
         // print logs
@@ -531,13 +527,28 @@ func coreWorker(
                     // web socket client
                     // TODO:
                 }
-                case protocol.GroupClientServer, protocol.GroupClientService: {
+                case protocol.GroupClientServer: {
                     // rpc server client or application client
-                    answer, err := protocol.ProcessingServerMsg(
+                    answers, err := protocol.ProcessingServerMsg(
                         &msg,
                         serverBusyAccounting,
                         serverMethods)
-                    answerDispatcher.Put(msg.Cid, answer)
+
+                    for answIndex := 0; answIndex < len(answers); answIndex ++ {
+                        answer := answers[answIndex]
+                        if answer.TargetIs(protocol.CmdWaitFree) {
+                            statistic.Append(StatBusyCount , 1)
+                            rllogger.Outputf(
+                                rllogger.LogDebug,
+                                "Workers busy, msg: %s",
+                                msg)
+                        }
+                        cid := (*answer).Cid
+                        if len(cid) < 1 {
+                            cid = msg.Cid
+                        }
+                        answerDispatcher.Put(cid, answer)
+                    }
                     if err != nil {
                         rllogger.Outputf(
                             rllogger.LogWarn,

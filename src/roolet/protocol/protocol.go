@@ -21,6 +21,9 @@ const (
     CmdServerStatus = 5
     CmdPublicMethodsRegistration = 6
     CmdCallMethod = 7
+    CmdWaitFree = 8
+    CmdProblem = 9
+    CmdOk = 10
 
     // error codes
     ErrCodeUnknown = 0
@@ -90,6 +93,12 @@ func NewServerCmd(target int, cid string) *ServerCmd {
     return &cmd
 }
 
+func NewServerDataCmd(target int, cid string, data *string) *ServerCmd {
+    cmd := *(NewServerCmd(target, cid))
+    cmd.Data = *data
+    return &cmd
+}
+
 func NewServerExitCmd() *ServerCmd {
     cmd := ServerCmd{baseCmd: baseCmd{Target: CmdExit}}
     return &cmd
@@ -97,6 +106,10 @@ func NewServerExitCmd() *ServerCmd {
 
 func (cmd *ServerCmd) IsEmpty() bool {
     return len((*cmd).Cid) == 0 && (*cmd).Target == 0
+}
+
+func (cmd *ServerCmd) TargetIs(target int) bool {
+    return (*cmd).Target == target
 }
 
 func (cmd *ServerCmd) Dump() (*string, error) {
@@ -376,24 +389,24 @@ func (cmd *ClientCmd) RequiredGroup() bool {
 type CoreMsgHandler func(
     msg *CoreMsg,
     serverBusyAccounting *helpers.ServerBusyAccounting,
-    serverMethods *helpers.ServerMethods) (*ServerCmd, error)
+    serverMethods *helpers.ServerMethods) ([]*ServerCmd, error)
 
 func stateUpdateHandler(
         msg *CoreMsg,
         serverBusyAccounting *helpers.ServerBusyAccounting,
-        serverMethods *helpers.ServerMethods) (*ServerCmd, error) {
+        serverMethods *helpers.ServerMethods) ([]*ServerCmd, error) {
     //
     var err error
     cid := (*msg).Cid
     serverBusyAccounting.SetBusy(cid, msg.GetStatus() == ClientProcStatusBusy)
     cmd := NewServerCmd(CmdServerStatus, cid)
-    return cmd, err
+    return []*ServerCmd{cmd}, err
 }
 
 func registrationPublicMethods(
         msg *CoreMsg,
         serverBusyAccounting *helpers.ServerBusyAccounting,
-        serverMethods *helpers.ServerMethods) (*ServerCmd, error) {
+        serverMethods *helpers.ServerMethods) ([]*ServerCmd, error) {
     //
     var err error
     var cmd *ServerCmd
@@ -410,26 +423,51 @@ func registrationPublicMethods(
         rllogger.Outputf(rllogger.LogInfo, "methods of server %s: %s", cid, data)
         cmd = NewServerCmd(CmdWaitCommand, cid)
     }
-    return cmd, err
+    return []*ServerCmd{cmd}, err
+}
+
+func sendCallMethod(
+        msg *CoreMsg,
+        serverBusyAccounting *helpers.ServerBusyAccounting,
+        serverMethods *helpers.ServerMethods) ([]*ServerCmd, error) {
+    //
+    var err error
+    var cmd, servCmd *ServerCmd
+    data := string((*msg).Data)
+    cid := (*msg).Cid
+    method := (*msg).Method
+    if serverMethods.IsPublic(method) {
+        if freeCid, exists := serverMethods.SearchFree(method, serverBusyAccounting); exists {
+            cmd = NewServerCmd(CmdOk, cid)
+            servCmd = NewServerDataCmd(CmdCallMethod, freeCid, &data)
+        } else {
+            cmd = NewServerCmd(CmdWaitFree, cid)
+        }
+    } else {
+        cmd = NewServerCmd(CmdProblem, cid)
+        err = errors.New(fmt.Sprintf("Method '%s' not found", method))
+    }
+    return []*ServerCmd{cmd, servCmd}, err
 }
 
 func notImplTargetHandler(
         msg *CoreMsg,
         serverBusyAccounting *helpers.ServerBusyAccounting,
-        serverMethods *helpers.ServerMethods) (*ServerCmd, error) {
+        serverMethods *helpers.ServerMethods) ([]*ServerCmd, error) {
     //
-    return NewServerExitCmd(), errors.New("Unknown target")
+    return []*ServerCmd{NewServerExitCmd()}, errors.New("Unknown target")
 }
 
 func ProcessingServerMsg(
         msg *CoreMsg,
         serverBusyAccounting *helpers.ServerBusyAccounting,
-        serverMethods *helpers.ServerMethods) (*ServerCmd, error) {
+        serverMethods *helpers.ServerMethods) ([]*ServerCmd, error) {
     //
     var handler CoreMsgHandler
     switch (*msg).Target {
         case CmdServerStatus: handler = stateUpdateHandler
         case CmdPublicMethodsRegistration: handler = registrationPublicMethods
+        case CmdCallMethod: handler = sendCallMethod
         default: handler = notImplTargetHandler
     }
     return handler(msg, serverBusyAccounting, serverMethods)

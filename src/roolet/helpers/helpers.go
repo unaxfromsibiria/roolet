@@ -218,6 +218,16 @@ func (serverMethods *ServerMethods) Append(method string, cid string) {
     }
 }
 
+func (serverMethods *ServerMethods) IsPublic(method string) bool {
+    serverMethods.RLockChange()
+    defer serverMethods.RUnLockChange()
+    result := false
+    if _, exists := (*serverMethods).methods[method]; exists {
+        result = exists
+    }
+    return result
+}
+
 func (serverMethods *ServerMethods) SearchFree(method string, busyAccounting *ServerBusyAccounting) (string, bool) {
     serverMethods.RLockChange()
     defer serverMethods.RUnLockChange()
