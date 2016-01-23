@@ -20,7 +20,8 @@ const (
     CmdWaitCommand = 4
     CmdServerStatus = 5
     CmdPublicMethodsRegistration = 6
-    
+    CmdCallMethod = 7
+
     // error codes
     ErrCodeUnknown = 0
     ErrCodeAuthFailed = 1
@@ -28,12 +29,12 @@ const (
     ErrCodeFormatProblem = 3
     ErrCodeAccessDenied = 4
     ErrCodeImplementationProblem = 5
-    
+
     // type of client
     GroupClientService = 1
     GroupClientServer = 2
     GroupClientWeb = 3
-    
+
     // status of client processing
     ClientProcStatusFree = 1
     ClientProcStatusBusy = 2
@@ -58,7 +59,7 @@ type ContextNewData struct {
 func (contextData ContextNewData) Update(context *helpers.ConnectionContext) {
     context.Clear()
     context.SetCid(contextData.cid)
-    context.SetupTmpData(contextData.data)        
+    context.SetupTmpData(contextData.data)
     if contextData.auth {
         context.DoAuth()
     }
@@ -143,7 +144,7 @@ type CoreMsg struct {
 func (msg *CoreMsg) setupData(newData string, useBase64 bool) {
     if useBase64 {
         (*msg).Data = make([]byte, base64.StdEncoding.EncodedLen(len(newData)))
-        base64.StdEncoding.Encode((*msg).Data, []byte(newData))        
+        base64.StdEncoding.Encode((*msg).Data, []byte(newData))
     } else {
         (*msg).Data = []byte(newData)
     }
@@ -287,7 +288,7 @@ func sendAuthResult(
                     clientParts[1],
                     // server key
                     serverKey)
-                
+
                 if hashMethod(line, option) == clientParts[0] {
                     rand := helpers.NewSystemRandom()
                     keySize, node := option.GetCidConstructorData()
@@ -297,7 +298,7 @@ func sendAuthResult(
                         contextUpdater: &contextData,
                         baseCmd: baseCmd{Cid: rand.CreateCid(keySize, node), Target: CmdClientData}}
                     result = &answer
-                    
+
                 } else {
                     err = errors.New("Auth failed!")
                 }
@@ -306,7 +307,7 @@ func sendAuthResult(
             }
         } else {
             err = errors.New("Client data not found.")
-        }        
+        }
     } else {
         // incorrect
         err = errors.New("Connection without auth request?")
@@ -339,7 +340,7 @@ func sendReady(
                     contextUpdater: &contextData,
                     baseCmd: baseCmd{Target: target, Cid: cid}}
                 result = &answer
-                
+
             }
             default: err = errors.New("Not accepted client group.")
         }
@@ -381,7 +382,7 @@ func stateUpdateHandler(
         msg *CoreMsg,
         serverBusyAccounting *helpers.ServerBusyAccounting,
         serverMethods *helpers.ServerMethods) (*ServerCmd, error) {
-    // 
+    //
     var err error
     cid := (*msg).Cid
     serverBusyAccounting.SetBusy(cid, msg.GetStatus() == ClientProcStatusBusy)
@@ -393,7 +394,7 @@ func registrationPublicMethods(
         msg *CoreMsg,
         serverBusyAccounting *helpers.ServerBusyAccounting,
         serverMethods *helpers.ServerMethods) (*ServerCmd, error) {
-    // 
+    //
     var err error
     var cmd *ServerCmd
     cid := (*msg).Cid
@@ -407,7 +408,7 @@ func registrationPublicMethods(
         cmd = NewServerExitCmd()
     } else {
         rllogger.Outputf(rllogger.LogInfo, "methods of server %s: %s", cid, data)
-        cmd = NewServerCmd(CmdWaitCommand, cid)        
+        cmd = NewServerCmd(CmdWaitCommand, cid)
     }
     return cmd, err
 }
@@ -430,6 +431,6 @@ func ProcessingServerMsg(
         case CmdServerStatus: handler = stateUpdateHandler
         case CmdPublicMethodsRegistration: handler = registrationPublicMethods
         default: handler = notImplTargetHandler
-    } 
+    }
     return handler(msg, serverBusyAccounting, serverMethods)
 }

@@ -135,7 +135,7 @@ func (context *ConnectionContext) IsAuth() bool {
 func (context *ConnectionContext) SetCid(value string) {
     // set it only once
     if len((*context).cid) == 0 {
-        (*context).cid = value        
+        (*context).cid = value
     }
 }
 

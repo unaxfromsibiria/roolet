@@ -17,7 +17,7 @@ const (
 )
 
 func UseLogDebug() bool {
-    return (os.Getenv("RLLOG") == "DEBUG")    
+    return (os.Getenv("RLLOG") == "DEBUG")
 }
 
 func getPath() string {
@@ -33,7 +33,7 @@ func Output(level int, msg string) {
     switch level {
         case LogDebug: {
             if UseLogDebug() {
-                log.Printf("DEBUG-> %s - %s\n", getPath(), msg)                
+                log.Printf("DEBUG-> %s - %s\n", getPath(), msg)
             }
         }
         case LogInfo: {

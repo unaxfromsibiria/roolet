@@ -99,7 +99,7 @@ func (dispatcher *AnswerDispatcher) RemoveChannel(cid string, closeChannel bool)
     if channelPtr, exists := dispatcher.channels[cid]; exists {
         result = exists
         if closeChannel {
-            close(*channelPtr)            
+            close(*channelPtr)
         }
         delete((*dispatcher).channels, cid)
     }
@@ -274,14 +274,14 @@ func NewServerCreate(optionSrc options.OptionLoder) *RlServer {
        option: *option,
        changeCountLock: new(sync.RWMutex),
        CoroutineActiveResource: *(helpers.NewCoroutineActiveResource())}
-   
+
    rllogger.Output(rllogger.LogInfo, server.info())
    return &server
 }
 
 func runWsServer(server *RlServer) {
     // TODO TODO TODO >_<
-    
+
     upgrader := websocket.Upgrader{
 	    ReadBufferSize: 1024,
 	    WriteBufferSize: 1024,
@@ -389,7 +389,7 @@ func connectionHandler(
                     // check auth
                     if cmd.RequiredAuth() && !connectionContext.IsAuth() {
                         answer = protocol.FastErrorAnswer(
-                            "Access denied!", protocol.ErrCodeAccessDenied)                                    
+                            "Access denied!", protocol.ErrCodeAccessDenied)
                     } else {
                         // try get fast handler
                         if exists, handler := cmd.GetFastHandler(); exists {
@@ -419,7 +419,7 @@ func connectionHandler(
                                     rllogger.LogWarn,
                                     "Msg create error: %s from %s",
                                     convertError, label)
-                                
+
                                 answer = protocol.FastErrorAnswer(
                                     convertError, protocol.ErrCodeProtocolProblem)
                             } else {
@@ -436,7 +436,7 @@ func connectionHandler(
                                         stat)
                                 }
                             }
-                        }                                    
+                        }
                     }
                 }
             }
@@ -456,7 +456,7 @@ func connectionHandler(
     }
     //not need "close(answerBuffer)" dispatcher do it
     stat.Append(StatConnectionCount, -1)
-    server.ChangeConnectionCount(-1)       
+    server.ChangeConnectionCount(-1)
 }
 
 func upConnection(
@@ -524,12 +524,12 @@ func coreWorker(
             // send to out answer clients connections
         } else {
             if option.CountWorkerTime {
-                startTime = time.Now()                
+                startTime = time.Now()
             }
             switch msg.Group {
                 case protocol.GroupClientWeb: {
                     // web socket client
-                    // TODO: 
+                    // TODO:
                 }
                 case protocol.GroupClientServer, protocol.GroupClientService: {
                     // rpc server client or application client
@@ -556,7 +556,7 @@ func coreWorker(
             if option.CountWorkerTime {
                 statistic.Append(
                     StatWorkerRunTime,
-                    float32(time.Since(startTime).Seconds()))                
+                    float32(time.Since(startTime).Seconds()))
             }
         }
     }
@@ -581,7 +581,7 @@ func (server RlServer) Run() {
             answerDispatcher,
             serverBusyAccounting,
             serverMethods,
-            statistic)        
+            statistic)
     }
     // wait sigterm
     signalChannel := make(chan os.Signal, 1)
