@@ -22,3 +22,14 @@ _testmain.go
 *.exe
 *.test
 *.prof
+
+# project
+/conf/
+/test/
+/connect_test/
+/bin/
+/pkg/
+
+# ide
+.project
+.pydevproject
