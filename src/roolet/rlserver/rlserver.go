@@ -524,30 +524,31 @@ func coreWorker(
             }
             switch msg.Group {
                 case protocol.GroupClientWeb: {
-                    // web socket client
-                    // TODO:
+                    // TODO: msg from web socket
                 }
-                case protocol.GroupClientServer: {
+                case protocol.GroupClientServer, protocol.GroupClientService: {
                     // rpc server client or application client
-                    answers, err := protocol.ProcessingServerMsg(
+                    answers, err := protocol.ProcessingMsg(
                         &msg,
                         serverBusyAccounting,
                         serverMethods)
 
                     for answIndex := 0; answIndex < len(answers); answIndex ++ {
                         answer := answers[answIndex]
-                        if answer.TargetIs(protocol.CmdWaitFree) {
-                            statistic.Append(StatBusyCount , 1)
-                            rllogger.Outputf(
-                                rllogger.LogDebug,
-                                "Workers busy, msg: %s",
-                                msg)
+                        if answer != nil {
+                            if answer.TargetIs(protocol.CmdWaitFree) {
+                                statistic.Append(StatBusyCount , 1)
+                                rllogger.Outputf(
+                                    rllogger.LogDebug,
+                                    "Workers busy, msg: %s",
+                                    msg)
+                            }
+                            cid := (*answer).Cid
+                            if len(cid) < 1 {
+                                cid = msg.Cid
+                            }
+                            answerDispatcher.Put(cid, answer)
                         }
-                        cid := (*answer).Cid
-                        if len(cid) < 1 {
-                            cid = msg.Cid
-                        }
-                        answerDispatcher.Put(cid, answer)
                     }
                     if err != nil {
                         rllogger.Outputf(

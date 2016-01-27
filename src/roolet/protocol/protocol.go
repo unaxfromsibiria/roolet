@@ -24,6 +24,8 @@ const (
     CmdWaitFree = 8
     CmdProblem = 9
     CmdOk = 10
+    CmdServerCall = 11
+    CmdPing = 12
 
     // error codes
     ErrCodeUnknown = 0
@@ -43,11 +45,15 @@ const (
     ClientProcStatusBusy = 2
 )
 
-func dumps(cmd interface{}) (string, error) {
+func dumps(cmd interface{}, endline bool) (string, error) {
     if data, err := json.Marshal(cmd); err != nil {
         return "", err
     } else {
-        return fmt.Sprintf("%s\n", data), nil
+        if endline {
+            return fmt.Sprintf("%s\n", data), nil
+        } else {
+            return string(data), nil
+        }
     }
 }
 
@@ -115,7 +121,7 @@ func (cmd *ServerCmd) TargetIs(target int) bool {
 func (cmd *ServerCmd) Dump() (*string, error) {
     var resultErr error
     var result *string
-    if data, err := dumps(cmd); err != nil {
+    if data, err := dumps(cmd, true); err != nil {
         resultErr = err
     } else {
         result = &data
@@ -135,6 +141,12 @@ func (srcCmd *ServerCmd) GetContextUpdater() (bool, helpers.ConnectionContextUpd
     } else {
         return false, nil
     }
+}
+
+type execData struct {
+    Task string
+    Data string
+    Method string
 }
 
 type InfoState struct {
@@ -433,13 +445,24 @@ func sendCallMethod(
     //
     var err error
     var cmd, servCmd *ServerCmd
-    data := string((*msg).Data)
     cid := (*msg).Cid
     method := (*msg).Method
     if serverMethods.IsPublic(method) {
         if freeCid, exists := serverMethods.SearchFree(method, serverBusyAccounting); exists {
-            cmd = NewServerCmd(CmdOk, cid)
-            servCmd = NewServerDataCmd(CmdCallMethod, freeCid, &data)
+            rand := helpers.NewSystemRandom()
+            task := rand.CreateTaskId()
+            taskInfo := fmt.Sprintf("{\"task\": \"%s\"}", task)
+            cmd = NewServerDataCmd(CmdOk, cid, &taskInfo)
+            execDataInst := execData{
+                Task: task,
+                Data: string((*msg).Data),
+                Method: method}
+            if data, dumpErr := dumps(execDataInst, false); dumpErr != nil {
+                err = dumpErr
+            } else {
+                servCmd = NewServerDataCmd(CmdCallMethod, freeCid, &data)
+                rllogger.Outputf(rllogger.LogDebug, "method '%s' -> %s", method, freeCid)
+            }
         } else {
             cmd = NewServerCmd(CmdWaitFree, cid)
         }
@@ -450,6 +473,16 @@ func sendCallMethod(
     return []*ServerCmd{cmd, servCmd}, err
 }
 
+func sendPongHandler(
+        msg *CoreMsg,
+        serverBusyAccounting *helpers.ServerBusyAccounting,
+        serverMethods *helpers.ServerMethods) ([]*ServerCmd, error) {
+    //
+    data := string((*msg).Data)
+    answerCmd := NewServerDataCmd(CmdPing, (*msg).Cid, &data)
+    return []*ServerCmd{answerCmd}, nil
+}
+
 func notImplTargetHandler(
         msg *CoreMsg,
         serverBusyAccounting *helpers.ServerBusyAccounting,
@@ -458,16 +491,40 @@ func notImplTargetHandler(
     return []*ServerCmd{NewServerExitCmd()}, errors.New("Unknown target")
 }
 
-func ProcessingServerMsg(
+func denyMethodForGroupHandler(
+        msg *CoreMsg,
+        serverBusyAccounting *helpers.ServerBusyAccounting,
+        serverMethods *helpers.ServerMethods) ([]*ServerCmd, error) {
+    //
+    return []*ServerCmd{NewServerExitCmd()}, errors.New("Method not accepted for group")
+}
+
+func ProcessingMsg(
         msg *CoreMsg,
         serverBusyAccounting *helpers.ServerBusyAccounting,
         serverMethods *helpers.ServerMethods) ([]*ServerCmd, error) {
     //
     var handler CoreMsgHandler
-    switch (*msg).Target {
+    target := (*msg).Target
+    // ckeck access for group method
+    switch (*msg).Group {
+        case GroupClientServer: {
+            if target == CmdCallMethod {
+                target = -1
+            }
+        }
+        case GroupClientService: {
+            if target == CmdPublicMethodsRegistration {
+                target = -1
+            }
+        }
+    }
+    switch target {
+        case -1: handler = denyMethodForGroupHandler
         case CmdServerStatus: handler = stateUpdateHandler
         case CmdPublicMethodsRegistration: handler = registrationPublicMethods
         case CmdCallMethod: handler = sendCallMethod
+        case CmdPing: handler = sendPongHandler
         default: handler = notImplTargetHandler
     }
     return handler(msg, serverBusyAccounting, serverMethods)

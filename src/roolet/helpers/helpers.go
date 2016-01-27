@@ -13,6 +13,7 @@ import (
 const (
     acceptCahrs = "abcdefghijkmnpqrstuvwxyz9876543210"
     DefaultPasswordSize = 64
+    randPartSize = 8
 )
 
 
@@ -69,6 +70,15 @@ func (sysRand *SysRandom) CreateCid(size int, prefix string) string {
         buf[i] = acceptCahrs[sysRand.Intn(len(acceptCahrs))]
     }
     return fmt.Sprintf("%s-%x", prefix, sha256.Sum224(buf))
+}
+
+func (sysRand *SysRandom) CreateTaskId() string {
+    buf := make([]byte, randPartSize)
+    for i := 0; i < randPartSize; i ++ {
+        buf[i] = acceptCahrs[sysRand.Intn(len(acceptCahrs))]
+    }
+    src := fmt.Sprintf("%s-%d", buf, time.Now().UTC().UnixNano())
+    return fmt.Sprintf("%x", sha256.Sum224([]byte(src)))
 }
 
 func (sysRand *SysRandom) Select(src *[]string) string {
