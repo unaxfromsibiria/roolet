@@ -22,6 +22,7 @@ _testmain.go
 *.exe
 *.test
 *.prof
+*.py[co]
 
 # project
 /conf/
@@ -33,3 +34,4 @@ _testmain.go
 # ide
 .project
 .pydevproject
+.settings*
