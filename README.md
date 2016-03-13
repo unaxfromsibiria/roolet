@@ -19,14 +19,14 @@ Options format example:
 		"node": "node1",
 		"addr": "127.0.0.1",
 		"port": 7551,
-		"wsaddr": "127.0.0.1",
-		"wsport": 7555,
-		"buffersize": 512,
+		"ws_addr": "127.0.0.1",
+		"ws_port": 7555,
+		"buffer_size": 512,
 		"workers": 4,
-		"countworkertime": true,
+		"count_worker_time": true,
 		"statistic": true,
-		"statisticchecktime": 5,
-		"keysize": 32,
+		"statistic_check_time": 5,
+		"key_size": 32,
 		"secret": "688dverxjga0ya87myzssshy8yrsbvgmn5t3qt57yvpkdxyqmnp3qbf8ms0wd99e"
 	}
 

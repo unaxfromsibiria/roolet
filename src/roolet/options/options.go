@@ -5,21 +5,23 @@ import (
     "io/ioutil"
     "roolet/rllogger"
     "encoding/json"
+    "errors"
 )
 
 type SysOption struct {
-    Port int
-    Addr string
-    WsPort int
-    WsAddr string
-    BufferSize int
-    Node string
-	Workers int
-	Statistic bool
-	StatisticCheckTime int
-	CountWorkerTime bool
-	KeySize int
-	Secret string
+    Port int `json:"port"`
+    Addr string `json:"addr"`
+    WsPort int `json:"ws_port"`
+    WsAddr string `json:"ws_addr"`
+    BufferSize int `json:"buffer_size"`
+    Node string `json:"node"`
+	Workers int `json:"workers"`
+	Statistic bool `json:"statistic"`
+	StatisticCheckTime int `json:"statistic_check_time"`
+	CountWorkerTime bool `json:"count_worker_time"`
+	KeySize int `json:"key_size"`
+	Secret string `json:"secret"`
+	StatusCheckPeriod int `json:"status_check_period"`
 }
 
 func (option SysOption) Socket() string {
@@ -28,7 +30,7 @@ func (option SysOption) Socket() string {
 
 func (option SysOption) String() string {
     return fmt.Sprintf(
-        "\tservice=%s:%d\n\twebsocket=%s:%d\n\tbuffersize=%d\n\tnode=%s\n\tworkers=%d\n\tstatistic=%t\n\tchecktime=%d\n",
+        "\tservice=%s:%d\n\tweb-socket=%s:%d\n\tbuffer size=%d\n\tnode=%s\n\tworkers=%d\n\tstatistic=%t\n\tcheck time=%d\n",
         option.Addr, option.Port, option.WsAddr, option.WsPort, option.BufferSize,
         option.Node, option.Workers, option.Statistic, option.StatisticCheckTime)
 }
@@ -69,5 +71,9 @@ func (src JsonOptionSrc) Load(useLog bool) (*SysOption, error) {
         }
         return nil, err
     }
-    return &option, nil
+    if option.Statistic && option.StatisticCheckTime > 0 {
+        return &option, nil        
+    } else {
+        return nil, errors.New("Wrong statistic options.")
+    }
 }

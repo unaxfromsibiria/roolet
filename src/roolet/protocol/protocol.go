@@ -78,14 +78,14 @@ func (contextData ContextNewData) Update(context *helpers.ConnectionContext) {
 }
 
 type baseCmd struct {
-    Cid string
-    Target int
-    Data string
+    Cid string `json:"cid"`
+    Target int `json:"target"`
+    Data string `json:"data"`
 }
 
 type ClientCmd struct {
     baseCmd
-    Method string
+    Method string `json:"method"`
 }
 
 type ServerCmd struct {
@@ -411,7 +411,7 @@ func stateUpdateHandler(
     var err error
     cid := (*msg).Cid
     serverBusyAccounting.SetBusy(cid, msg.GetStatus() == ClientProcStatusBusy)
-    cmd := NewServerCmd(CmdServerStatus, cid)
+    cmd := NewServerCmd(CmdWaitCommand, cid)
     return []*ServerCmd{cmd}, err
 }
 

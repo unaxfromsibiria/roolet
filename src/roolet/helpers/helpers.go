@@ -91,6 +91,7 @@ func (sysRand *SysRandom) CreatePassword(size int) string {
     if size > 0 {
         newSize = size
     }
+    
     buf := make([]byte, newSize)
     for i := 0; i < newSize; i ++ {
         buf[i] = acceptCahrs[sysRand.Intn(len(acceptCahrs))]

@@ -127,6 +127,12 @@ func (dispatcher *AnswerDispatcher) PutAll(cmd *protocol.ServerCmd) {
     }
 }
 
+func (dispatcher *AnswerDispatcher) HasClients() bool {
+    dispatcher.RLockChange()
+    defer dispatcher.RUnLockChange()
+    return len((*dispatcher).channels) > 0
+}
+
 func (dispatcher *AnswerDispatcher) CloseAll() {
     dispatcher.LockChange()
     defer dispatcher.UnLockChange()
@@ -264,7 +270,7 @@ func (server *RlServer) GetOption() options.SysOption {
 func NewServerCreate(optionSrc options.OptionLoder) *RlServer {
    option, err := optionSrc.Load(true)
    if err != nil {
-       rllogger.Output(rllogger.LogTerminate, "Option doesn't exists!")
+       rllogger.Outputf(rllogger.LogTerminate, "Option load failed: %s", err)
    }
    server := RlServer{
        option: *option,
@@ -277,6 +283,7 @@ func NewServerCreate(optionSrc options.OptionLoder) *RlServer {
 
 func runWsServer(server *RlServer) {
     // TODO TODO TODO >_<
+    // client send JSON-RPC
 
     upgrader := websocket.Upgrader{
 	    ReadBufferSize: 1024,
@@ -485,8 +492,8 @@ func upConnection(
 		    server.ChangeConnectionCount(1)
 		    tcpConnection := newConnection.(*net.TCPConn)
             tcpConnection.SetKeepAlive(true)
-            // TODO: in option?
-            tcpConnection.SetKeepAlivePeriod(10 * time.Second)
+            tcpConnection.SetKeepAlivePeriod(
+                time.Duration(1 + options.StatusCheckPeriod) * time.Second)
             //
     		go connectionHandler(
     		    server,
@@ -497,6 +504,31 @@ func upConnection(
     		    statistic)
 		}
 	}
+}
+
+// Send command to all client
+func serviceBroadcasting(
+        server *RlServer,
+        answerDispatcher *AnswerDispatcher) {
+    // 
+    option := server.GetOption()
+    cmd := protocol.NewServerCmd(protocol.CmdServerStatus, "")
+    debug := rllogger.UseLogDebug()
+    for server.IsActive() {
+        if answerDispatcher.HasClients() {
+            var startTime time.Time
+            if debug {
+                startTime = time.Now()                
+            }
+            answerDispatcher.PutAll(cmd)
+            if debug {
+                rllogger.Outputf(
+                    rllogger.LogDebug,
+                    "Send status request per %f", float32(time.Since(startTime).Seconds()))
+            }
+        }
+        time.Sleep(time.Duration(option.StatusCheckPeriod) * time.Second);        
+    }
 }
 
 func coreWorker(
@@ -595,6 +627,8 @@ func (server RlServer) Run() {
             serverMethods,
             statistic)
     }
+    // status service
+    go serviceBroadcasting(&server, answerDispatcher)
     // wait sigterm
     signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt)
