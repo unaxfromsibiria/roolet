@@ -2,11 +2,16 @@
 # @email: linkofwise@gmail.com
 # @github: unaxfromsibiria
 
+import base64
+import pickle
 import socket
 import time
+from uuid import uuid4
+from random import SystemRandom
 
 from .config import Configuration, LoggerWrapper
 from .common import CommandBuilder, Command
+from .exceptions import ExecuteError
 from .protocol import CommandTargetType, auth_request, ServiceGroup
 
 
@@ -23,6 +28,7 @@ class Client(object):
     _timeout = None
     _buffer_size = None
     _cid = None
+    _cid_part = None
 
     def __init__(self, conf=None):
         if not conf:
@@ -39,6 +45,8 @@ class Client(object):
         self._logger = conf.get_logger(
             wraper=LoggerWrapper('client'))
         self.command_builder = self.cls_command_builder()
+        rand = SystemRandom()
+        self._cid_part = '{:0>4}'.format(hex(rand.randint(0, int('ffff', 16)))[2:])
 
     def _new_cmd(self, **data):
         return self.command_builder.cls_command(cid=self._cid, **data)
@@ -101,6 +109,9 @@ class Client(object):
 
         return False
 
+    def _get_task_id(self):
+        return '{}-{}'.format(self._cid_part, uuid4())
+
     def open(self):
         if self._connection is None:
             self._cid = None
@@ -137,3 +148,45 @@ class Client(object):
 
     def is_active(self):
         return bool(self._connection and self._cid)
+
+    def execute(self, method, params=None, progress=True):
+        """
+        :param str method: remote method name
+        :param params: method kwargs
+        :param bool progress: use native progress bar support
+        :rtype str: return task id
+        """
+
+        assert method and isinstance(method, str)
+        task_id = self._get_task_id()
+        data = {
+            'id': task_id,
+            'params': None,
+            'progress': progress,
+        }
+        if params:
+            data.update(
+                params=base64.encodebytes(pickle.dumps(params)))
+
+        cmd = self._new_cmd(
+            target=CommandTargetType.call_method, data=data, method=method)
+        self._send(cmd)
+
+        for cmd in self._read():
+            if cmd.target == CommandTargetType.problem:
+                raise ExecuteError(cmd.data)
+            elif cmd.target == CommandTargetType.ok:
+                return task_id
+
+    def get_result(self, task_id):
+        cmd = self._new_cmd(
+            target=CommandTargetType.get_result, data=task_id)
+        self._send(cmd)
+
+        for cmd in self._read():
+            if cmd.target == CommandTargetType.problem:
+                raise ExecuteError(cmd.data)
+            elif cmd.target == CommandTargetType.ok:
+                if cmd.data:
+                    # TODO: try except wrapper
+                    return pickle.loads(base64.decodebytes(cmd.data))

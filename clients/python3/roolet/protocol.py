@@ -34,6 +34,7 @@ class CommandTargetType(Enum):
     ok = 10
     server_call = 11
     ping = 12
+    get_result = 13
 
 
 class Protocol(object):

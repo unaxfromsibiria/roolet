@@ -6,6 +6,7 @@ import (
     "roolet/helpers"
     "roolet/rllogger"
     "roolet/protocol"
+    "roolet/connectionsupport"
     "bufio"
     "fmt"
     "io"
@@ -616,6 +617,9 @@ func (server RlServer) Run() {
     serverBusyAccounting := helpers.NewServerBusyAccounting()
     serverMethods := helpers.NewServerMethods()
     go upConnection(&server, &msgToCoreBuffer, answerDispatcher, statistic)
+    connectionSupport := connectionsupport.NewConnectionAccounting()
+    // TODO: use it
+    connectionSupport.Dec()
 
     for index := 1; index < server.option.Workers + 1; index ++ {
         go coreWorker(
