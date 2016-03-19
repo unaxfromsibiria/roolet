@@ -73,12 +73,19 @@ func (sysRand *SysRandom) CreateCid(size int, prefix string) string {
 }
 
 func (sysRand *SysRandom) CreateTaskId() string {
-    buf := make([]byte, randPartSize)
-    for i := 0; i < randPartSize; i ++ {
-        buf[i] = acceptCahrs[sysRand.Intn(len(acceptCahrs))]
-    }
-    src := fmt.Sprintf("%s-%d", buf, time.Now().UTC().UnixNano())
+    src := fmt.Sprintf("%s-%d", sysRand.GetShotPrefix(), time.Now().UTC().UnixNano())
     return fmt.Sprintf("%x", sha256.Sum224([]byte(src)))
+}
+
+func (sysRand *SysRandom) GetShotPrefix() string {
+	buf := make([]byte, randPartSize)
+	n := int(len(acceptCahrs))
+	var index int
+    for i := 0; i < randPartSize; i ++ {
+		index = sysRand.Intn(n)
+        buf[i] = acceptCahrs[index]
+    }
+    return fmt.Sprintf("%s", buf)
 }
 
 func (sysRand *SysRandom) Select(src *[]string) string {

@@ -1,90 +1,137 @@
 package connectionsupport
 
 import (
+	"fmt"
+	"errors"
 	"sync"
+	"strings"
+	"strconv"
+	"roolet/helpers"
+	"roolet/options"
 )
 
 const (
 	ResourcesGroupSize = 100
 )
 
-type NewConnectionIndex struct {
-	index int
-	group int
-}
-
-type ConnectionAccounting struct {
-	total int
-	counter int
-	revese_counter int
+type safeObject struct {
 	changeLock *sync.RWMutex
 }
 
-func (accounting *ConnectionAccounting) lock(rw bool) {
+func (obj *safeObject) Lock(rw bool) {
 	if rw {
-		(*accounting).changeLock.Lock()
+		(*obj).changeLock.Lock()
 	} else {
-		(*accounting).changeLock.RLock()
+		(*obj).changeLock.RLock()
 	}
 }
 
-func (accounting *ConnectionAccounting) unlock(rw bool) {
+func (obj *safeObject) Unlock(rw bool) {
 	if rw {
-		(*accounting).changeLock.Unlock()
+		(*obj).changeLock.Unlock()
 	} else {
-		(*accounting).changeLock.RUnlock()
+		(*obj).changeLock.RUnlock()
 	}
 }
 
-func NewConnectionAccounting() *ConnectionAccounting {
-	result := ConnectionAccounting{changeLock: new(sync.RWMutex)}
+type ConnectionData struct {
+	Cid string
+	// [1...n]
+	index int
+	id int64
+}
+
+func newConnectionData(prefix string, id int64, index int) *ConnectionData {
+	result := ConnectionData{
+		id: id, index: index, Cid: fmt.Sprintf("%s-%016X-%d", prefix, id, index)}
 	return &result
 }
 
-func (accounting *ConnectionAccounting) Inc() (int, int) {
-	accounting.lock(true)
-	defer accounting.unlock(true)
-	value := (*accounting).counter + 1
-	(*accounting).counter = value
-	(*accounting).total ++
-	return value, accounting.getResourceIndex(value)
+func (connData ConnectionData) String() string {
+	return fmt.Sprintf("%s(%d, %d)", connData.Cid, connData.id, connData.index)
 }
 
-func (accounting *ConnectionAccounting) Dec() {
-	accounting.lock(true)
-	defer accounting.unlock(true)
-	(*accounting).total --
-	(*accounting).revese_counter --
+func ExtractConnectionData(cid *string) (*ConnectionData, error) {
+	parts := strings.Split(*cid, "-")
+	if len(parts) != 3 {
+		return nil, errors.New("Client id format error")
+	}
+	index, err := strconv.ParseInt(parts[2], 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	id, err := strconv.ParseInt(parts[1], 16, 64)
+	if err != nil {
+		return nil, err
+	}
+	return newConnectionData(parts[0], id, int(index)), nil
 }
 
-func (accounting *ConnectionAccounting) GetNewIndex() *NewConnectionIndex {
-	result := NewConnectionIndex{}
-	result.index, result.group = accounting.Inc()
+func (connData *ConnectionData) GetId() int64 {
+	return connData.id
+}
+
+func (connData *ConnectionData) GetResourceIndex() int {
+	return connData.index
+}
+
+type ConnectionDataStorageCell struct {
+	safeObject
+}
+
+type ConnectionDataManager struct {
+	safeObject
+	rand helpers.SysRandom
+	options options.SysOption
+	index int64
+	total int64
+}
+
+func NewConnectionDataManager(options options.SysOption) *ConnectionDataManager {
+	rand := helpers.NewSystemRandom()
+	result := ConnectionDataManager{
+		rand: *rand, options: options, safeObject: safeObject{changeLock: new(sync.RWMutex)}}
 	return &result
 }
 
-// index for access to allocated (multi mutex map etc.) resources by connection index
-func (accounting *ConnectionAccounting) GetResourceIndex(index int) int {
-	accounting.lock(false)
-	defer accounting.unlock(false)
-	return accounting.getResourceIndex(index)
+func (manager *ConnectionDataManager) Inc() int64 {
+	manager.Lock(true)
+	defer manager.Unlock(true)
+	value := (*manager).index + 1
+	(*manager).index = value
+	(*manager).total ++
+	return value
 }
 
-func (accounting *ConnectionAccounting) getResourceIndex(index int) int {
-	if accounting.total > ResourcesGroupSize && index > ResourcesGroupSize {
-		groupCount := int(accounting.total / ResourcesGroupSize)
-		stepSize := int(accounting.counter / groupCount)
-		return int(index / stepSize)
+func (manager *ConnectionDataManager) Dec() {
+	manager.Lock(true)
+	defer manager.Unlock(true)
+	(*manager).total --
+}
+
+func (manager *ConnectionDataManager) NewConnection() *ConnectionData {
+	manager.Lock(true)
+	value := (*manager).index + 1
+	total := (*manager).total + 1
+	(*manager).index = value
+	(*manager).total = total
+	prefix := manager.rand.GetShotPrefix()
+	manager.Unlock(true)
+	var index int
+	if total <= ResourcesGroupSize {
+		index = 1
 	} else {
-		return 0
+		index = int(total / ResourcesGroupSize)
 	}
+	connectionData := newConnectionData(prefix, value, index)
+	return connectionData
 }
 
 // testing only (not use it)
 type TestingData interface {
-    GetTestingData() (int, int, int)
+    GetTestingData() (int64, int64)
 }
 
-func (accounting ConnectionAccounting) GetTestingData() (int, int, int) {
-	return accounting.counter, accounting.total, accounting.revese_counter
+func (manager ConnectionDataManager) GetTestingData() (int64, int64) {
+	return manager.index, manager.total
 }
