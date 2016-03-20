@@ -1,6 +1,7 @@
 package connectionsupport_test
 
 import (
+    "math/rand"
     "roolet/connectionsupport"
     "roolet/options"
     "testing"
@@ -111,9 +112,7 @@ func TestIndexCorrect(t *testing.T) {
 }
 
 func TestCidConvertation(t *testing.T) {
-	var cid string
-	cid = "afaad-ffff-2314"
-	connData, err := connectionsupport.ExtractConnectionData(&cid)
+	connData, err := connectionsupport.ExtractConnectionData("afaad-ffff-2314")
 	if err != nil {
 		t.Error("Cid must be correct!")
 	} else {
@@ -123,14 +122,93 @@ func TestCidConvertation(t *testing.T) {
 			t.Error("Convertation problem!")
 		}
 	}
-	cid = "afaad-ff4fkf6-2314"
-	connData, err = connectionsupport.ExtractConnectionData(&cid)
+	connData, err = connectionsupport.ExtractConnectionData("afaad-ff4fkf6-2314")
 	if err == nil {
 		t.Error("Convertation problem!")
 	}
-	cid = "afaad-ff4f0f6--2314"
-	connData, err = connectionsupport.ExtractConnectionData(&cid)
+	connData, err = connectionsupport.ExtractConnectionData("afaad-ff4f0f6--2314")
 	if err == nil {
 		t.Error("Convertation problem!")
+	}
+}
+
+func TestSimpleClientStateSyncUpdate(t *testing.T) {
+	option := options.SysOption{}
+	manager := connectionsupport.NewConnectionDataManager(option)
+	// skip someone
+	for i := 0; i < 2356; i ++ {
+		manager.NewConnection()
+	}
+	connData := manager.NewConnection()
+	t.Logf("New client: %s", connData.Cid)
+	manager.SetClientBusy(connData.Cid, true)
+	if !manager.ClientBusy(connData.Cid) {
+		t.Error("Broken method 1.")
+	}
+	manager.SetClientBusy(connData.Cid, false)
+	if manager.ClientBusy(connData.Cid) {
+		t.Error("Broken method 2.")
+	}
+	manager.SetClientBusy(connData.Cid, true)
+	if !manager.ClientBusy(connData.Cid) {
+		t.Error("Broken method 3.")
+	}
+}
+
+func TestNormalDistributionOfMissesAndHits(t *testing.T) {
+	option := options.SysOption{}
+	manager := connectionsupport.NewConnectionDataManager(option)
+	wCount := 100
+	operCount := 10000
+	for i := 0; i < 3462; i ++ {
+		manager.NewConnection()
+	}
+	connData := manager.NewConnection()
+	t.Logf("New client: %s", connData.Cid)
+	type res struct {
+		Hits int
+		Misses int
+		Done bool
+	}
+	worker := func(done *chan res, m *connectionsupport.ConnectionDataManager, cid string) {
+		r := res{}
+		for i := 0; i < operCount; i ++ {
+			value := rand.Intn(10) > 5
+			m.SetClientBusy(cid, value)
+			if value == m.ClientBusy(connData.Cid) {
+				r.Hits ++
+			} else {
+				r.Misses ++
+			}
+		}
+		r.Done = true
+		(*done) <- r
+	}
+	doneChan := make(chan res, 1)
+	for index := 0; index < wCount; index ++ {
+		go worker(&doneChan, manager, connData.Cid)
+	}
+	doneCount := 0
+	misses := 0
+	hits := 0
+	for doneCount < wCount {
+		newR := <- doneChan
+		if newR.Done {
+			misses += newR.Misses
+			hits += newR.Hits
+			doneCount ++
+		}
+	}
+	t.Logf("hits: %d misses: %d", hits, misses)
+	total := hits + misses
+	if total != wCount * operCount {
+		t.Error("Test broken!")
+	}
+	// only if result > 10%
+	if float32(hits) / float32(total) * 100.0 < 10.0 {
+		t.Error("Async work problem with hits")
+	}
+	if float32(misses) / float32(total) * 100.0 < 10.0 {
+		t.Error("Async work problem with misses")
 	}
 }
