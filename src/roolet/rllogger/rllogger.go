@@ -16,8 +16,18 @@ const (
     LogTerminate = 4
 )
 
+var silentLog bool = false
+
 func UseLogDebug() bool {
     return (os.Getenv("RLLOG") == "DEBUG")
+}
+
+func IsSilent() bool {
+    return silentLog || (os.Getenv("RLLOG") == "SILENT")
+}
+
+func SetSilent(value bool) {
+    silentLog = value
 }
 
 func getPath() string {
@@ -30,6 +40,9 @@ func getPath() string {
 }
 
 func Output(level int, msg string) {
+	if IsSilent() {
+		return
+	}
     switch level {
         case LogDebug: {
             if UseLogDebug() {
@@ -56,11 +69,17 @@ func Output(level int, msg string) {
 }
 
 func Outputf(level int, format string, a...interface{}) {
+	if IsSilent() {
+		return
+	}
     msg := fmt.Sprintf(format, a...)
     Output(level, msg)
 }
 
 func OutputLines(level int, label string, lines *[]string) {
+	if IsSilent() {
+		return
+	}
     msg := fmt.Sprintf("%s:\n", label)
     for _, line := range *lines {
         msg = fmt.Sprintf("%s - %s\n", msg, line)
