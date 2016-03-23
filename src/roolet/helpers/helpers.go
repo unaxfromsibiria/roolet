@@ -4,7 +4,9 @@ import (
     "crypto/sha256"
     "fmt"
     "encoding/json"
+    "io"
     "math/rand"
+    "os"
     "strings"
     "sync"
     "time"
@@ -275,4 +277,22 @@ func (serverMethods *ServerMethods) FillFromMsgData(cid string, content *[]byte)
         }
     }
     return err
+}
+
+func CopyFile(dstFilePath, srcFilePath string) error {
+	srcFile, err := os.Open(srcFilePath)
+	defer srcFile.Close()
+	if err != nil {
+		return err
+	}
+	dstFile, err := os.Create(dstFilePath)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		dstFile.Close()
+		return err
+	} else {
+		return dstFile.Close()
+	}
 }

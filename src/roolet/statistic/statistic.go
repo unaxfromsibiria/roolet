@@ -1,7 +1,10 @@
 package statistic
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"roolet/helpers"
 	"roolet/options"
 	"roolet/rllogger"
 	"time"
@@ -106,10 +109,38 @@ func NewStatistic(option options.SysOption) *Statistic {
 	}
 	
 	go statProcessing(&stat)
+	// save to file support
+	if len(option.StatisticFile) > 0 {
+		statFilePath := option.StatisticFile
+		logFileSaveHandler := func(now time.Time, lines *[]string) {
+			// copy file
+			newFilePath := fmt.Sprintf("%s.%d.tmp", statFilePath, now.Unix())
+			hasCopy := helpers.CopyFile(newFilePath, statFilePath) == nil
+			if hasCopy {
+				os.Remove(statFilePath)
+			}
+			if newFile, err := os.Create(statFilePath); err == nil {
+				defer newFile.Close()
+				writer := bufio.NewWriter(newFile)
+				for _, line := range *lines {
+					writer.WriteString(line)
+					writer.WriteRune('\n')
+					writer.Flush()
+				}
+			} else {
+				rllogger.Outputf(rllogger.LogWarn, "Statistic file %s not avalible!", statFilePath)
+			}
+			if hasCopy {
+				os.Remove(newFilePath)
+			}	
+		}
+		stat.AddStatisticOutHandler(logFileSaveHandler)
+	}
 	return &stat
 }
 
 func (stat *Statistic) SendMsg(code string, value interface{}) {
+	// TODO: need lock for active change
 	if (*stat).silent || !(*stat).active {
 		return
 	}

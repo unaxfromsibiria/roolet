@@ -17,6 +17,7 @@ type SysOption struct {
     Node string `json:"node"`
 	Workers int `json:"workers"`
 	Statistic bool `json:"statistic"`
+	StatisticFile string `json:"statistic_file"`
 	StatisticCheckTime int `json:"statistic_check_time"`
 	CountWorkerTime bool `json:"count_worker_time"`
 	KeySize int `json:"key_size"`

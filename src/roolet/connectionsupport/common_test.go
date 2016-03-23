@@ -205,10 +205,10 @@ func TestNormalDistributionOfMissesAndHits(t *testing.T) {
 		t.Error("Test broken!")
 	}
 	// only if result > 10%
-	if float32(hits) / float32(total) * 100.0 < 10.0 {
+	if float32(hits) / float32(total) * 100.0 < 50.0 {
 		t.Error("Async work problem with hits")
 	}
-	if float32(misses) / float32(total) * 100.0 < 10.0 {
+	if float32(misses) / float32(total) * 100.0 < 5.0 {
 		t.Error("Async work problem with misses")
 	}
 }
