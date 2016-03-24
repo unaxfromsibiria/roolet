@@ -40,9 +40,24 @@ type Command struct {
 	Params MethodParams
 }
 
+type ErrorDescription struct {
+	Code int `json:"code"`
+	Message string `json:"message"`
+}
+
+type Answer struct {
+	Jsonrpc string `json:"jsonrpc"`
+	Id int `json:"id"`
+	Result string `json:"result"`
+	Error ErrorDescription
+}
+
 // get simple command
-func NewCommand(cid, method, data string) *Command {
-	cmd := Command{Method: method, Params: MethodParams{Data: data, Cid: cid}}
+func NewCommand(id int, cid, method, data string) *Command {
+	cmd := Command{
+		Id: id,
+		Method: method,
+		Params: MethodParams{Data: data, Cid: cid}}
 	return &cmd
 }
 
@@ -56,4 +71,25 @@ func (cmd *Command) Dump() (*string, error) {
         result = &data
     }
     return result, resultErr
+}
+
+func (cmd *Command) Load(data []byte) error {
+	return json.Unmarshal(data, cmd)
+}
+
+func (cmd Command) String() string {
+	return fmt.Sprintf("Commad(id=%d, cid=%s, method=%s)", cmd.Id, cmd.Params.Cid, cmd.Method)
+}
+
+func NewErrorAnswer(id, code int, msg string) *Answer {
+	result := Answer{
+		Id: id,
+		Jsonrpc: JSONRpcVersion,
+		Error: ErrorDescription{Code: code, Message: msg}}
+	return &result
+}
+
+func NewAnsew(id int, res string) *Answer {
+	result := Answer{Id: id, Result: res, Jsonrpc: JSONRpcVersion}
+	return &result
 }

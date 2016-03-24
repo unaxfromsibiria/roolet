@@ -7,6 +7,7 @@ import (
 	"roolet/helpers"
 	"roolet/options"
 	"roolet/rllogger"
+	"sync"
 	"time"
 )
 
@@ -65,6 +66,7 @@ type Statistic struct {
 	iterTime int
 	msgCount int64
 	lastSendTime time.Time
+	activeChangeLock *sync.RWMutex
 }
 
 func statProcessing(stat *Statistic) {
@@ -96,6 +98,7 @@ func statProcessing(stat *Statistic) {
 func NewStatistic(option options.SysOption) *Statistic {
 	stat := Statistic{
 		active: true,
+		activeChangeLock: new(sync.RWMutex),
 		messages: make(chan StatMsg, StatBufferSize),
 		closeChan: make(chan bool, 1), 
 		iterTime: option.StatisticCheckTime,
@@ -140,12 +143,12 @@ func NewStatistic(option options.SysOption) *Statistic {
 }
 
 func (stat *Statistic) SendMsg(code string, value interface{}) {
-	// TODO: need lock for active change
-	if (*stat).silent || !(*stat).active {
-		return
+	(*stat).activeChangeLock.RLock()
+	defer (*stat).activeChangeLock.RUnlock()
+	if !(*stat).silent && (*stat).active {
+		msg := NewStatMsg(code , value)
+		(*stat).messages <- (*msg)
 	}
-	msg := NewStatMsg(code , value)
-	(*stat).messages <- (*msg)
 }
 
 func (stat *Statistic) Close() {
@@ -223,6 +226,8 @@ func (stat *Statistic) calc() {
 }
 
 func (stat *Statistic) stop() {
+	(*stat).activeChangeLock.Lock()
+	defer (*stat).activeChangeLock.Unlock()
 	(*stat).active = false
 }
 
