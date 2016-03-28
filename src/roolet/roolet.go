@@ -1,16 +1,21 @@
 package main
 
 import (
-    "log"
+    "roolet/rllogger"
     "roolet/options"
-    "roolet/rlserver"
+    "roolet/corelauncher"
     "os"
 )
 
 
 func main() {
     confPath := os.Getenv("CONF")
-    log.Printf("Starting with '%s'...\n", confPath)
-    server := rlserver.NewServerCreate(options.JsonOptionSrc{FilePath: confPath})
-    server.Run()
+    optionSrc := options.JsonOptionSrc{FilePath: confPath}
+    if option, err := optionSrc.Load(true); err == nil {
+	    rllogger.Outputf(rllogger.LogInfo, "Starting with '%s'...\n", confPath)
+	    corelauncher.Launch(option)
+    } else {
+    	rllogger.Outputf(rllogger.LogTerminate, "Option load failed: %s", err)
+    }
+
 }

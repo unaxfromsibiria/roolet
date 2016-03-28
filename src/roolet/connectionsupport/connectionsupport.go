@@ -80,6 +80,7 @@ func (connData *ConnectionData) GetResourceIndex() int {
 
 type ClientStateData struct {
 	Busy bool
+	TempData []byte
 }
 
 func newClientStateData() *ClientStateData {
@@ -125,6 +126,25 @@ func (cell *ConnectionDataStorageCell) SetBusy(id int64, value bool) {
 	defer cell.Unlock(true)
 	if rec, exists := (*cell).data[id]; exists {		
 		(*rec).Busy = value
+	}
+}
+
+func (cell *ConnectionDataStorageCell) GetTempContent(id int64) *string {
+	cell.Lock(false)
+	defer cell.Unlock(false)
+	if rec, exists := (*cell).data[id]; exists {
+		result := string((*rec).TempData)
+		return &result
+	} else {
+		return nil
+	}
+}
+
+func (cell *ConnectionDataStorageCell) SetTempContent(id int64, value *string) {
+	cell.Lock(true)
+	defer cell.Unlock(true)
+	if rec, exists := (*cell).data[id]; exists {		
+		(*rec).TempData = []byte(*value)
 	}
 }
 
