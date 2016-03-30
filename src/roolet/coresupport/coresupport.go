@@ -21,7 +21,7 @@ func worker(
 		instructionsChannel *chan CoreInstruction,
 		stopSignalChannel *chan bool,
 		option options.SysOption,
-		stat *statistic.Statistic) {
+		stat statistic.StatisticUpdater) {
 	//
 	rllogger.Outputf(rllogger.LogDebug, "Worker %d started...", index)
 	active := true
@@ -30,7 +30,7 @@ func worker(
 		select {
 			case instruction := <- *instructionsChannel: {
 				if instruction.Type != TypeCoreInstructionSkip {
-					
+					// TODO: use for auth JWT https://github.com/dgrijalva/jwt-go#parse-and-verify
 				}
 			}
 			case <- *stopSignalChannel: {
@@ -46,7 +46,7 @@ type CoreWorkerManager struct {
 	OutSignalChannel chan bool
 	workerStopSignalChannel chan bool
 	instructionsChannel chan CoreInstruction
-	statistic *statistic.Statistic
+	statistic statistic.StatisticUpdater
 }
 
 func NewCoreWorkerManager(option options.SysOption, stat *statistic.Statistic) *CoreWorkerManager {

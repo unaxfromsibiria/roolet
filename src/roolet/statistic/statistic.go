@@ -54,6 +54,10 @@ func NewStatMsg(code string, value interface{}) *StatMsg {
     return &msg
 }
 
+type StatisticUpdater interface {
+	SendMsg(code string, value interface{})
+}
+
 type Statistic struct {
 	closeChan chan bool
 	messages chan StatMsg
