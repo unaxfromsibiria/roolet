@@ -2,12 +2,13 @@ package options
 
 import (
 	"crypto/rsa"
+    "errors"
     "fmt"
     "io/ioutil"
     "roolet/rllogger"
+    "roolet/helpers"
     "encoding/json"
-    "errors"
-    "strings"
+    
     "github.com/dgrijalva/jwt-go"
 )
 
@@ -31,8 +32,6 @@ type SysOption struct {
 	KeySize int `json:"key_size"`
 	Secret string `json:"secret"`
 	StatusCheckPeriod int `json:"status_check_period"`
-	Passphrase string `json:"passphrase"`
-	KeyAlgorithm string `json:"key_algorithm"`
 	KeyDir string `json:"key_dir"`
 }
 
@@ -68,8 +67,8 @@ type JsonOptionSrc struct {
 }
 
 func (option SysOption) GetPubKey() (*rsa.PublicKey, error) {
-    parts := append(strings.Split(option.KeyDir, "/"), pubKeyFileName)
-    if key, err := ioutil.ReadFile(strings.Join(parts, "/")); err != nil {
+	filePath := helpers.GetFullFilePath(option.KeyDir, pubKeyFileName)
+    if key, err := ioutil.ReadFile(filePath); err != nil {
     	return nil, err
     } else {
     	return jwt.ParseRSAPublicKeyFromPEM(key)
@@ -77,8 +76,8 @@ func (option SysOption) GetPubKey() (*rsa.PublicKey, error) {
 }
 
 func (option SysOption) GetPrivKey() (*rsa.PrivateKey, error) {
-    parts := append(strings.Split(option.KeyDir, "/"), privKeyFileName)
-    if key, err := ioutil.ReadFile(strings.Join(parts, "/")); err != nil {
+	filePath := helpers.GetFullFilePath(option.KeyDir, privKeyFileName)
+    if key, err := ioutil.ReadFile(filePath); err != nil {
     	return nil, err
     } else {
     	return jwt.ParseRSAPrivateKeyFromPEM(key)

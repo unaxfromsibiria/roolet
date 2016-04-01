@@ -7,6 +7,7 @@ import (
     "io"
     "math/rand"
     "os"
+    "path"
     "strings"
     "sync"
     "time"
@@ -18,6 +19,15 @@ const (
     randPartSize = 8
 )
 
+func GetFullFilePath(dir, fileName string) string {
+	var pwdDir string
+	if !path.IsAbs(dir) {
+		if workDir, err := os.Getwd(); err == nil {
+			pwdDir = workDir
+		}
+	}
+	return path.Join(pwdDir, dir, fileName)
+}
 
 type CoroutineActiveResource struct {
     active bool

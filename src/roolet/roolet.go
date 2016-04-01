@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
     "roolet/rllogger"
     "roolet/options"
     "roolet/corelauncher"
@@ -10,7 +11,7 @@ import (
 )
 
 var toolType, toolData string
-type toolMethod func(string, options.SysOption)
+type toolMethod func(string, *options.SysOption)
 
 func init() {	
 	flag.StringVar(&toolType, "tool", "", "Tools command")
@@ -26,12 +27,15 @@ func main() {
 	    if len(toolType) > 0 {
 	    	// now run for tooling
 			var toolMethods map[string]toolMethod = make(map[string]toolMethod)
-			toolMethods["jwt"] = cryptosupport.JwtCreate
+			toolMethods["jwtcreate"] = cryptosupport.JwtCreate
+			toolMethods["jwtcheck"] = cryptosupport.JwtCheck
+			toolMethods["keyscheck"] = cryptosupport.KeysSimpleCheck
+			
 	    	if method, exists := toolMethods[toolType]; exists {
-	    		method(toolData, *option)
+	    		method(toolData, option)
 	    	} else {
-	    		panic("Unknown tool name requested.")
-	    	}	    	
+	    		panic(fmt.Sprintf("Unknown tool name requested: '%s'", toolType))
+	    	}
 	    } else {
 	    	// run as service
 		    corelauncher.Launch(option)	    	
