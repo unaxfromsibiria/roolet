@@ -111,6 +111,14 @@ func (cell *ConnectionDataStorageCell) Clear(id int64) {
 	}
 }
 
+func (cell *ConnectionDataStorageCell) Remove(id int64) {
+	cell.Lock(true)
+	defer cell.Unlock(true)
+	if _, exists := (*cell).data[id]; exists {
+		delete((*cell).data, id)
+	}
+}
+
 func (cell *ConnectionDataStorageCell) IsBusy(id int64) bool {
 	cell.Lock(false)
 	defer cell.Unlock(false)
@@ -175,6 +183,10 @@ func NewConnectionDataManager(options options.SysOption) *ConnectionDataManager 
 	return &result
 }
 
+func (manager *ConnectionDataManager) Close() {
+	// pass
+}
+
 func (manager *ConnectionDataManager) Inc() int64 {
 	manager.Lock(true)
 	defer manager.Unlock(true)
@@ -232,6 +244,12 @@ func (manager *ConnectionDataManager) ClientBusy(cid string) bool {
 			manager.storage[connData.index - 1].IsBusy(connData.id))
 	}
 	return result
+}
+
+func (manager *ConnectionDataManager) RemoveConnection(cid string) {
+	if connData, err := ExtractConnectionData(cid); err == nil {
+		manager.storage[connData.index - 1].Remove(connData.id)
+	}
 }
 
 func (manager *ConnectionDataManager) SetClientBusy(cid string, value bool) bool {

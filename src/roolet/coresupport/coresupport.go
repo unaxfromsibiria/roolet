@@ -4,6 +4,8 @@ import (
 	"roolet/options"
 	"roolet/statistic"
 	"roolet/rllogger"
+	"roolet/transport"
+	"roolet/connectionsupport"
 )
 
 const (
@@ -13,7 +15,14 @@ const (
 
 type CoreInstruction struct {
 	Type int
-	// TODO: pointers to context and some data
+	cmd *transport.Command
+	answer *transport.Answer
+	dataManager *connectionsupport.ConnectionDataManager
+	connectionInfo *connectionsupport.ConnectionData
+}
+
+func (instruction *CoreInstruction) IsEmpty() bool {
+	return (*instruction).cmd == nil && (*instruction).answer == nil
 }
 
 func worker(
@@ -30,7 +39,7 @@ func worker(
 		select {
 			case instruction := <- *instructionsChannel: {
 				if instruction.Type != TypeCoreInstructionSkip {
-					// TODO: use for auth JWT https://github.com/dgrijalva/jwt-go#parse-and-verify
+					// TODO: 
 				}
 			}
 			case <- *stopSignalChannel: {
@@ -84,4 +93,15 @@ func (mng *CoreWorkerManager) Stop() {
 
 func (mng *CoreWorkerManager) Close() {
 	close((*mng).OutSignalChannel)
+}
+
+func (mng *CoreWorkerManager) BrokenConnection(connData *connectionsupport.ConnectionData) {
+	//pass
+}
+
+func (mng *CoreWorkerManager) Processing(
+		cmd *transport.Command,
+		connDataManager *connectionsupport.ConnectionDataManager,
+		connData *connectionsupport.ConnectionData) {
+	// select instraction typy by method of command
 }

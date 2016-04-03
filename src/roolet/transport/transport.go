@@ -73,8 +73,8 @@ func (cmd *Command) Dump() (*string, error) {
     return result, resultErr
 }
 
-func (cmd *Command) Load(data []byte) error {
-	return json.Unmarshal(data, cmd)
+func (cmd *Command) Load(data *[]byte) error {
+	return json.Unmarshal(*data, cmd)
 }
 
 func (cmd Command) String() string {
@@ -89,7 +89,17 @@ func NewErrorAnswer(id, code int, msg string) *Answer {
 	return &result
 }
 
-func NewAnsew(id int, res string) *Answer {
+func NewAnswer(id int, res string) *Answer {
 	result := Answer{Id: id, Result: res, Jsonrpc: JSONRpcVersion}
 	return &result
+}
+
+func ParseCommand(content *[]byte) (*Command, error) {
+	cmd := Command{}
+	err := cmd.Load(content)
+	if err == nil {
+		return &cmd, nil
+	} else {
+		return nil, err
+	}
 }
