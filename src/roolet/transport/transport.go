@@ -52,6 +52,29 @@ type Answer struct {
 	Error ErrorDescription
 }
 
+func (ans *Answer) Dump() (*string, error) {
+	(*ans).Jsonrpc = JSONRpcVersion
+    var resultErr error
+    var result *string
+    if data, err := dumps(ans, true); err != nil {
+        resultErr = err
+    } else {
+        result = &data
+    }
+    return result, resultErr
+}
+
+func (ans *Answer) DataDump() *[]byte {
+	(*ans).Jsonrpc = JSONRpcVersion
+    var result *[]byte
+    if data, err := json.Marshal(ans); err == nil {
+        result = &data
+    } else {
+    	result = nil
+    }
+    return result
+}
+
 // get simple command
 func NewCommand(id int, cid, method, data string) *Command {
 	cmd := Command{

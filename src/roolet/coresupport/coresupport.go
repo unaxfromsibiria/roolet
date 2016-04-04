@@ -25,6 +25,14 @@ func (instruction *CoreInstruction) IsEmpty() bool {
 	return (*instruction).cmd == nil && (*instruction).answer == nil
 }
 
+func (instruction *CoreInstruction) GetCommand() (*transport.Command, bool) {
+	return (*instruction).cmd, (*instruction).cmd == nil
+}
+
+func (instruction *CoreInstruction) GetAnswer() (*transport.Answer, bool) {
+	return (*instruction).answer, (*instruction).answer == nil
+}
+
 func worker(
 		index int,
 		instructionsChannel *chan CoreInstruction,
@@ -97,6 +105,13 @@ func (mng *CoreWorkerManager) Close() {
 
 func (mng *CoreWorkerManager) BrokenConnection(connData *connectionsupport.ConnectionData) {
 	//pass
+}
+
+func (mng *CoreWorkerManager) AppendBackChannel(
+		connData *connectionsupport.ConnectionData,
+		backChannel *chan CoreInstruction) {
+	//
+	// TODO: new separated map like storage in ConnectionDataManager
 }
 
 func (mng *CoreWorkerManager) Processing(

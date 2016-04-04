@@ -54,7 +54,44 @@ func (server *ConnectionServer) isAcceptForConnection() bool {
 	return server.GetStatus() != ServerStatusOff
 }
 
-func (server *ConnectionServer) connectionProcessingWorker(
+// answer worker
+func connectionWriteProcessing(
+		connection net.Conn,
+		backChannel *chan coresupport.CoreInstruction,
+		stat statistic.StatisticUpdater,
+		label string) {
+	// 
+	wait := true
+	var newInstruction coresupport.CoreInstruction
+	for wait {
+		newInstruction = <- *backChannel
+		if newInstruction.IsEmpty() {
+			wait = false
+		} else {
+			// write
+			if answer, exists := newInstruction.GetAnswer(); exists {
+				data := answer.DataDump()
+				if data == nil {
+					rllogger.Outputf(rllogger.LogWarn, "No data for answer to %s?", label)
+				} else {
+					line := append(*data, byte('\n'))
+					if writen, err := connection.Write(line); err == nil {
+						stat.SendMsg("outcome_data_size", writen)
+					} else {
+						rllogger.Outputf(rllogger.LogWarn, "Can't wite answer to %s: %s", label, err)
+						stat.SendMsg("lost_connection_count", 1)
+						// wtf ?
+						wait = false
+					}
+				}
+			} else {
+				rllogger.Outputf(rllogger.LogWarn, "Empty answer to %s?", label)
+			}
+		}
+	}
+}
+
+func (server *ConnectionServer) connectionReadProcessing(
 		connection net.Conn,
 		workerManager *coresupport.CoreWorkerManager,
 		label string) {
@@ -65,6 +102,8 @@ func (server *ConnectionServer) connectionProcessingWorker(
     hasAnswerChannel := false
 	connectionData := server.connectionDataManager.NewConnection()
 	rllogger.Outputf(rllogger.LogDebug, "new connection %s", connectionData.Cid)
+	sizeBuffer := (*server).option.BufferSize
+
     for wait {
     	//
 		lineData, _, err := buffer.ReadLine()
@@ -72,11 +111,12 @@ func (server *ConnectionServer) connectionProcessingWorker(
 			server.stat.SendMsg("income_data_size", len(lineData))
 			if cmd, err := transport.ParseCommand(&lineData); err == nil {
 				workerManager.Processing(cmd, server.connectionDataManager, connectionData)
-				// TODO:
-				// check and create answer channel
-				// registr him in worker manager
 				if !hasAnswerChannel {
 					// create
+					backChannel := make(chan coresupport.CoreInstruction, sizeBuffer)
+					// dont like closure, only realy need
+					go connectionWriteProcessing(connection, &backChannel, server.stat, label)
+					workerManager.AppendBackChannel(connectionData, &backChannel)
 					hasAnswerChannel = true
 				}
 			} else {
@@ -111,6 +151,7 @@ func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManag
 				if err != nil {
 					rllogger.Outputf(
 						rllogger.LogTerminate, "Can't create connection to %s error: %s", socket, err)
+					server.stat.SendMsg("lost_connection_count", 1)
 				} else {
 				    clientAddr := fmt.Sprintf("connection:%s", newConnection.RemoteAddr())
 					rllogger.Outputf(rllogger.LogDebug, "new %s", clientAddr)
@@ -119,7 +160,7 @@ func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManag
 					tcpConnection.SetKeepAlivePeriod(
 					    time.Duration(1 + options.StatusCheckPeriod) * time.Second)
 					server.stat.SendMsg("connection_count", 1)
-					server.connectionProcessingWorker(
+					server.connectionReadProcessing(
 						newConnection,
 						workerManager,
 						clientAddr)
@@ -135,7 +176,9 @@ func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManag
 func NewServer(option options.SysOption, stat *statistic.Statistic) *ConnectionServer {
 	stat.AddItem("connection_count", "Client conntection count")
 	stat.AddItem("income_data_size", "Income data size")
+	stat.AddItem("outcome_data_size", "Outcome data size")
 	stat.AddItem("bad_command_count", "Format error command count")
+	stat.AddItem("lost_connection_count", "Lost connection count")
 	server := ConnectionServer{
 		statusAcceptedObject: statusAcceptedObject{
 			statusChangeLock: new(sync.RWMutex)},
