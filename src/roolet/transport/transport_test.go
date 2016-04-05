@@ -22,7 +22,8 @@ func TestSimpleCmdLoad(t *testing.T) {
 		"{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"method_get\",\"Params\":" +
 		"{\"cid\":\"some-id\",\"data\":\"eyJzdGF0dXMiOiAyfQ==\",\"json\":\"\"}}")
 	cmd := transport.Command{}
-	if cmd.Load([]byte(data)) == nil && cmd.Params.Cid == "some-id" {
+	dat := []byte(data)
+	if cmd.Load(&dat) == nil && cmd.Params.Cid == "some-id" {
 		t.Logf("Load command: %s", cmd)
 	} else {
 		t.Error("Load json object error.")

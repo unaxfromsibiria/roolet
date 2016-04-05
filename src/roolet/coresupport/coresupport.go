@@ -6,19 +6,14 @@ import (
 	"roolet/rllogger"
 	"roolet/transport"
 	"roolet/connectionsupport"
-)
-
-const (
-	TypeCoreInstructionSkip = 0
-	TypeCoreInstructionExit = 10
+	"roolet/coreprocessing"
 )
 
 type CoreInstruction struct {
 	Type int
+	cid string
 	cmd *transport.Command
 	answer *transport.Answer
-	dataManager *connectionsupport.ConnectionDataManager
-	connectionInfo *connectionsupport.ConnectionData
 }
 
 func (instruction *CoreInstruction) IsEmpty() bool {
@@ -42,13 +37,14 @@ func worker(
 	//
 	rllogger.Outputf(rllogger.LogDebug, "Worker %d started...", index)
 	active := true
+
 	for active {
 		// wait new instruction or finish
 		select {
 			case instruction := <- *instructionsChannel: {
-				if instruction.Type != TypeCoreInstructionSkip {
+				if instruction.Type != coreprocessing.TypeInstructionSkip {
 					// TODO: 
-				}
+				} 
 			}
 			case <- *stopSignalChannel: {
 				active = false
@@ -58,21 +54,59 @@ func worker(
 	rllogger.Outputf(rllogger.LogDebug, "Worker %d completed...", index)
 }
 
+type outChannelGroup struct {
+	connectionsupport.AsyncSafeObject
+	channels map[int64]*chan CoreInstruction
+}
+
+func newOutChannelGroup() *outChannelGroup {
+	objPtr := connectionsupport.NewAsyncSafeObject()
+	group := outChannelGroup{
+		AsyncSafeObject: *objPtr,
+		channels: make(map[int64]*chan CoreInstruction)}
+	return &group
+}
+
+func (group *outChannelGroup) exists(id int64) bool {
+	group.Lock(false)
+	defer group.Unlock(false)
+	_, exists := (*group).channels[id]
+	return exists
+}
+
+func (group *outChannelGroup) put(id int64, channelPtr *chan CoreInstruction) {
+	group.Lock(true)
+	defer group.Unlock(true)
+	(*group).channels[id] = channelPtr
+}
+
+func (group *outChannelGroup) Append(id int64, channelPtr *chan CoreInstruction) {
+	if !group.exists(id) {
+		group.put(id, channelPtr)
+	} 
+}
+
 type CoreWorkerManager struct {
 	options options.SysOption
 	OutSignalChannel chan bool
 	workerStopSignalChannel chan bool
 	instructionsChannel chan CoreInstruction
+	outChannels []*outChannelGroup
+	// onсe instance everywhere
+	methodsDict *coreprocessing.MethodInstructionDict
 	statistic statistic.StatisticUpdater
 }
 
 func NewCoreWorkerManager(option options.SysOption, stat *statistic.Statistic) *CoreWorkerManager {
 	// setup statistic items
 	stat.AddItem("processed", "Processed messages count")
+	stat.AddItem("skip_cmd", "Command with skip instruction count")
 	manager := CoreWorkerManager{
 		OutSignalChannel: make(chan bool, 1),
 		workerStopSignalChannel: make(chan bool, option.Workers),
 		instructionsChannel: make(chan CoreInstruction, option.BufferSize),
+		outChannels: make([]*outChannelGroup, connectionsupport.GroupCount),
+		methodsDict: coreprocessing.NewMethodInstructionDict(),
 		statistic: stat,
 		options: option}
 	return &manager
@@ -111,12 +145,18 @@ func (mng *CoreWorkerManager) AppendBackChannel(
 		connData *connectionsupport.ConnectionData,
 		backChannel *chan CoreInstruction) {
 	//
-	// TODO: new separated map like storage in ConnectionDataManager
+	mng.outChannels[connData.GetResourceIndex()].Append(connData.GetId(), backChannel)
 }
 
 func (mng *CoreWorkerManager) Processing(
 		cmd *transport.Command,
 		connDataManager *connectionsupport.ConnectionDataManager,
 		connData *connectionsupport.ConnectionData) {
-	// select instraction typy by method of command
+	// select instraction type by method of command
+	instruction := CoreInstruction{cmd: cmd, cid: (*connData).Cid}
+	instruction.Type = mng.methodsDict.Get((*cmd).Method)
+	if instruction.Type == coreprocessing.TypeInstructionSkip {
+		mng.statistic.SendMsg("skip_cmd", 1)	
+	}
+	mng.instructionsChannel <- instruction
 }
