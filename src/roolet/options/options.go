@@ -2,107 +2,107 @@ package options
 
 import (
 	"crypto/rsa"
-    "errors"
-    "fmt"
-    "io/ioutil"
-    "roolet/rllogger"
-    "roolet/helpers"
-    "encoding/json"
-    
-    "github.com/dgrijalva/jwt-go"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/ioutil"
+	"roolet/helpers"
+	"roolet/rllogger"
+
+	"github.com/dgrijalva/jwt-go"
 )
 
 const (
-	pubKeyFileName = "key.pub"
+	pubKeyFileName  = "key.pub"
 	privKeyFileName = "key.priv"
 )
 
 type SysOption struct {
-    Port int `json:"port"`
-    Addr string `json:"addr"`
-    WsPort int `json:"ws_port"`
-    WsAddr string `json:"ws_addr"`
-    BufferSize int `json:"buffer_size"`
-    Node string `json:"node"`
-	Workers int `json:"workers"`
-	Statistic bool `json:"statistic"`
-	StatisticFile string `json:"statistic_file"`
-	StatisticCheckTime int `json:"statistic_check_time"`
-	CountWorkerTime bool `json:"count_worker_time"`
-	KeySize int `json:"key_size"`
-	Secret string `json:"secret"`
-	StatusCheckPeriod int `json:"status_check_period"`
-	KeyDir string `json:"key_dir"`
+	Port               int    `json:"port"`
+	Addr               string `json:"addr"`
+	WsPort             int    `json:"ws_port"`
+	WsAddr             string `json:"ws_addr"`
+	BufferSize         int    `json:"buffer_size"`
+	Node               string `json:"node"`
+	Workers            int    `json:"workers"`
+	Statistic          bool   `json:"statistic"`
+	StatisticFile      string `json:"statistic_file"`
+	StatisticCheckTime int    `json:"statistic_check_time"`
+	CountWorkerTime    bool   `json:"count_worker_time"`
+	KeySize            int    `json:"key_size"`
+	Secret             string `json:"secret"`
+	StatusCheckPeriod  int    `json:"status_check_period"`
+	KeyDir             string `json:"key_dir"`
 }
 
 func (option SysOption) Socket() string {
-    return fmt.Sprintf("%s:%d", option.Addr, option.Port)
+	return fmt.Sprintf("%s:%d", option.Addr, option.Port)
 }
 
 func (option SysOption) String() string {
-    return fmt.Sprintf(
-        "\tservice=%s:%d\n\tweb-socket=%s:%d\n\tbuffer size=%d\n\tnode=%s\n\tworkers=%d\n\tstatistic=%t\n\tcheck time=%d\n",
-        option.Addr, option.Port, option.WsAddr, option.WsPort, option.BufferSize,
-        option.Node, option.Workers, option.Statistic, option.StatisticCheckTime)
+	return fmt.Sprintf(
+		"\tservice=%s:%d\n\tweb-socket=%s:%d\n\tbuffer size=%d\n\tnode=%s\n\tworkers=%d\n\tstatistic=%t\n\tcheck time=%d\n",
+		option.Addr, option.Port, option.WsAddr, option.WsPort, option.BufferSize,
+		option.Node, option.Workers, option.Statistic, option.StatisticCheckTime)
 }
 
 func (option SysOption) GetDefaultKeySize() int {
-    return option.KeySize
+	return option.KeySize
 }
 
 func (option SysOption) GetSecretKey() string {
-    return option.Secret
+	return option.Secret
 }
 
 func (option SysOption) GetCidConstructorData() (int, string) {
-    return option.KeySize, option.Node
+	return option.KeySize, option.Node
 }
 
 type OptionLoder interface {
-    Load(useLog bool) (*SysOption, error)
+	Load(useLog bool) (*SysOption, error)
 }
 
 type JsonOptionSrc struct {
-    FilePath string
+	FilePath string
 }
 
 func (option SysOption) GetPubKey() (*rsa.PublicKey, error) {
 	filePath := helpers.GetFullFilePath(option.KeyDir, pubKeyFileName)
-    if key, err := ioutil.ReadFile(filePath); err != nil {
-    	return nil, err
-    } else {
-    	return jwt.ParseRSAPublicKeyFromPEM(key)
-    }
+	if key, err := ioutil.ReadFile(filePath); err != nil {
+		return nil, err
+	} else {
+		return jwt.ParseRSAPublicKeyFromPEM(key)
+	}
 }
 
 func (option SysOption) GetPrivKey() (*rsa.PrivateKey, error) {
 	filePath := helpers.GetFullFilePath(option.KeyDir, privKeyFileName)
-    if key, err := ioutil.ReadFile(filePath); err != nil {
-    	return nil, err
-    } else {
-    	return jwt.ParseRSAPrivateKeyFromPEM(key)
-    }
+	if key, err := ioutil.ReadFile(filePath); err != nil {
+		return nil, err
+	} else {
+		return jwt.ParseRSAPrivateKeyFromPEM(key)
+	}
 }
 
 func (src JsonOptionSrc) Load(useLog bool) (*SysOption, error) {
-    content, err := ioutil.ReadFile(src.FilePath)
-    if err != nil {
-        if useLog {
-            rllogger.Outputf(rllogger.LogWarn, "Load: %s", err)
-        }
-        return nil, err
-    }
-    option := SysOption{}
-    err = json.Unmarshal(content, &option)
-    if err != nil{
-        if useLog {
-            rllogger.Outputf(rllogger.LogWarn, "Load: %s", err)
-        }
-        return nil, err
-    }
-    if option.Statistic && option.StatisticCheckTime > 0 {
-        return &option, nil        
-    } else {
-        return nil, errors.New("Wrong statistic options.")
-    }
+	content, err := ioutil.ReadFile(src.FilePath)
+	if err != nil {
+		if useLog {
+			rllogger.Outputf(rllogger.LogWarn, "Load: %s", err)
+		}
+		return nil, err
+	}
+	option := SysOption{}
+	err = json.Unmarshal(content, &option)
+	if err != nil {
+		if useLog {
+			rllogger.Outputf(rllogger.LogWarn, "Load: %s", err)
+		}
+		return nil, err
+	}
+	if option.Statistic && option.StatisticCheckTime > 0 {
+		return &option, nil
+	} else {
+		return nil, errors.New("Wrong statistic options.")
+	}
 }

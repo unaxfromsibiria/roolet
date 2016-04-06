@@ -3,11 +3,11 @@ package statistic_test
 import (
 	"fmt"
 	"os"
-    "roolet/statistic"
-    "roolet/options"
-    "roolet/rllogger"
-    "testing"
-    "time"
+	"roolet/options"
+	"roolet/rllogger"
+	"roolet/statistic"
+	"testing"
+	"time"
 )
 
 func TestStatisticSimple(t *testing.T) {
@@ -15,7 +15,7 @@ func TestStatisticSimple(t *testing.T) {
 		Statistic: true, StatisticCheckTime: 2}
 	stat := statistic.NewStatistic(option)
 	outHandler := func(now time.Time, lines *[]string) {
-		for _, line := range *lines{
+		for _, line := range *lines {
 			t.Log(line)
 		}
 	}
@@ -37,7 +37,7 @@ func TestStatisticSimple(t *testing.T) {
 	stat.AddItem("test3", "Test value 3")
 	stat.SendMsg("test2", 10)
 	stat.SendMsg("test1", 5.5)
-	time.Sleep(time.Duration(option.StatisticCheckTime + 1) * time.Second)
+	time.Sleep(time.Duration(option.StatisticCheckTime+1) * time.Second)
 	stat.Close()
 	testData := statistic.TestingData(stat)
 	items := testData.GetTestingData()
@@ -48,10 +48,10 @@ func TestStatisticSimple(t *testing.T) {
 
 func TestStatisticFileSave(t *testing.T) {
 	option := options.SysOption{
-		Statistic: true,
-		StatisticFile:  fmt.Sprintf("%s/roolettest.stat.log", os.TempDir()),
+		Statistic:          true,
+		StatisticFile:      fmt.Sprintf("%s/roolettest.stat.log", os.TempDir()),
 		StatisticCheckTime: 1}
-	
+
 	t.Logf("Statistic file: %s", option.StatisticFile)
 	stat := statistic.NewStatistic(option)
 	calcSummMethod := func(items *map[string]statistic.StatValueType) {
@@ -71,13 +71,13 @@ func TestStatisticFileSave(t *testing.T) {
 	stat.AddItem("test3", "Test value 3")
 	stat.SendMsg("test2", 10)
 	stat.SendMsg("test1", 5.5)
-	time.Sleep(time.Duration(option.StatisticCheckTime + 1) * time.Second)
+	time.Sleep(time.Duration(option.StatisticCheckTime+1) * time.Second)
 	stat.Close()
 	if file, err := os.Open(option.StatisticFile); err != nil {
-	    t.Error(err)
+		t.Error(err)
 	} else {
 		if fi, err := file.Stat(); err != nil {
-		    t.Error(err)
+			t.Error(err)
 		} else {
 			fSize := fi.Size()
 			t.Logf("File size: %d", fSize)
@@ -95,7 +95,7 @@ func TestUnexpectedClosingForAsyncClients(t *testing.T) {
 		Statistic: true, StatisticCheckTime: 2}
 	stat := statistic.NewStatistic(option)
 	outHandler := func(now time.Time, lines *[]string) {
-		for _, line := range *lines{
+		for _, line := range *lines {
 			t.Log(line)
 		}
 	}
@@ -128,9 +128,9 @@ func TestUnexpectedClosingForAsyncClients(t *testing.T) {
 	stat.AddItem("count", "count")
 	stat.AddItem("avg", "avg")
 	stat.AddItem("summ", "summ")
-	
+
 	worker := func(st *statistic.Statistic, n int) {
-		for i := 0; i < n; i ++ {
+		for i := 0; i < n; i++ {
 			stat.SendMsg("test2", 1)
 			stat.SendMsg("test1", 0.1)
 			stat.SendMsg("test2", 0.1)
@@ -138,7 +138,7 @@ func TestUnexpectedClosingForAsyncClients(t *testing.T) {
 			stat.SendMsg("count", 1)
 		}
 	}
-	for index := 0; index <= 64; index ++ {
+	for index := 0; index <= 64; index++ {
 		go worker(stat, 4000)
 	}
 	time.Sleep(time.Duration(100) * time.Millisecond)

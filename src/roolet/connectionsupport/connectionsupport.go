@@ -1,28 +1,28 @@
 package connectionsupport
 
 import (
-	"fmt"
 	"errors"
-	"sync"
-	"strings"
-	"strconv"
+	"fmt"
 	"roolet/helpers"
 	"roolet/options"
 	"roolet/rllogger"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 const (
 	ResourcesGroupSize = 100
 	// design value
 	MaxClientCount = 100000
-	GroupCount = MaxClientCount / ResourcesGroupSize
+	GroupCount     = MaxClientCount / ResourcesGroupSize
 )
 
 type AsyncSafeObject struct {
 	changeLock *sync.RWMutex
 }
 
-func NewAsyncSafeObject() *AsyncSafeObject {	
+func NewAsyncSafeObject() *AsyncSafeObject {
 	obj := AsyncSafeObject{changeLock: new(sync.RWMutex)}
 	return &obj
 }
@@ -47,7 +47,7 @@ type ConnectionData struct {
 	Cid string
 	// [1...n]
 	index int
-	id int64
+	id    int64
 }
 
 func newConnectionData(prefix string, id int64, index int) *ConnectionData {
@@ -85,7 +85,7 @@ func (connData *ConnectionData) GetResourceIndex() int {
 }
 
 type ClientStateData struct {
-	Busy bool
+	Busy     bool
 	TempData []byte
 }
 
@@ -138,7 +138,7 @@ func (cell *ConnectionDataStorageCell) IsBusy(id int64) bool {
 func (cell *ConnectionDataStorageCell) SetBusy(id int64, value bool) {
 	cell.Lock(true)
 	defer cell.Unlock(true)
-	if rec, exists := (*cell).data[id]; exists {		
+	if rec, exists := (*cell).data[id]; exists {
 		(*rec).Busy = value
 	}
 }
@@ -157,7 +157,7 @@ func (cell *ConnectionDataStorageCell) GetTempContent(id int64) *string {
 func (cell *ConnectionDataStorageCell) SetTempContent(id int64, value *string) {
 	cell.Lock(true)
 	defer cell.Unlock(true)
-	if rec, exists := (*cell).data[id]; exists {		
+	if rec, exists := (*cell).data[id]; exists {
 		(*rec).TempData = []byte(*value)
 	}
 }
@@ -165,27 +165,27 @@ func (cell *ConnectionDataStorageCell) SetTempContent(id int64, value *string) {
 func newConnectionDataStorageCell() *ConnectionDataStorageCell {
 	objPtr := NewAsyncSafeObject()
 	result := ConnectionDataStorageCell{
-		data: make(map[int64]*ClientStateData),
+		data:            make(map[int64]*ClientStateData),
 		AsyncSafeObject: *objPtr}
 	return &result
 }
 
 type ConnectionDataManager struct {
 	AsyncSafeObject
-	rand helpers.SysRandom
+	rand    helpers.SysRandom
 	options options.SysOption
 	storage []*ConnectionDataStorageCell
-	index int64
-	total int64
+	index   int64
+	total   int64
 }
 
 func NewConnectionDataManager(options options.SysOption) *ConnectionDataManager {
 	rand := helpers.NewSystemRandom()
 	result := ConnectionDataManager{
-		rand: *rand,
+		rand:    *rand,
 		options: options,
 		// all pointer set reserved now
-		storage: make([]*ConnectionDataStorageCell, GroupCount),
+		storage:         make([]*ConnectionDataStorageCell, GroupCount),
 		AsyncSafeObject: AsyncSafeObject{changeLock: new(sync.RWMutex)}}
 	return &result
 }
@@ -199,14 +199,14 @@ func (manager *ConnectionDataManager) Inc() int64 {
 	defer manager.Unlock(true)
 	value := (*manager).index + 1
 	(*manager).index = value
-	(*manager).total ++
+	(*manager).total++
 	return value
 }
 
 func (manager *ConnectionDataManager) Dec() {
 	manager.Lock(true)
 	defer manager.Unlock(true)
-	(*manager).total --
+	(*manager).total--
 }
 
 func (manager *ConnectionDataManager) NewConnection() *ConnectionData {
@@ -220,17 +220,17 @@ func (manager *ConnectionDataManager) NewConnection() *ConnectionData {
 	if total <= ResourcesGroupSize {
 		index = 1
 	} else {
-		index = int((total - 1) / ResourcesGroupSize) + 1
+		index = int((total-1)/ResourcesGroupSize) + 1
 	}
-	if index > MaxClientCount / ResourcesGroupSize {
+	if index > MaxClientCount/ResourcesGroupSize {
 		index = MaxClientCount / ResourcesGroupSize
 		rllogger.Outputf(rllogger.LogError, "To muth clients! Over %d!", MaxClientCount)
 	}
-	if (*manager).storage[index - 1] == nil {
-		(*manager).storage[index - 1] = newConnectionDataStorageCell()
+	if (*manager).storage[index-1] == nil {
+		(*manager).storage[index-1] = newConnectionDataStorageCell()
 	}
 	manager.Unlock(true)
-	(*manager).storage[index - 1].create(value)
+	(*manager).storage[index-1].create(value)
 	connectionData := newConnectionData(prefix, value, index)
 	return connectionData
 }
@@ -238,24 +238,22 @@ func (manager *ConnectionDataManager) NewConnection() *ConnectionData {
 func (manager *ConnectionDataManager) CheckStorageExists(index int) bool {
 	manager.Lock(false)
 	defer manager.Unlock(false)
-	return (
-		index >= 1 && index <= (MaxClientCount / ResourcesGroupSize) &&
-		manager.storage[index - 1] != nil)
+	return (index >= 1 && index <= (MaxClientCount/ResourcesGroupSize) &&
+		manager.storage[index-1] != nil)
 }
 
 func (manager *ConnectionDataManager) ClientBusy(cid string) bool {
 	result := false
 	if connData, err := ExtractConnectionData(cid); err == nil {
-		result = (
-			manager.CheckStorageExists(connData.index) &&
-			manager.storage[connData.index - 1].IsBusy(connData.id))
+		result = (manager.CheckStorageExists(connData.index) &&
+			manager.storage[connData.index-1].IsBusy(connData.id))
 	}
 	return result
 }
 
 func (manager *ConnectionDataManager) RemoveConnection(cid string) {
 	if connData, err := ExtractConnectionData(cid); err == nil {
-		manager.storage[connData.index - 1].Remove(connData.id)
+		manager.storage[connData.index-1].Remove(connData.id)
 	}
 }
 
@@ -264,7 +262,7 @@ func (manager *ConnectionDataManager) SetClientBusy(cid string, value bool) bool
 	if connData, err := ExtractConnectionData(cid); err == nil {
 		result = manager.CheckStorageExists(connData.index)
 		if result {
-			manager.storage[connData.index - 1].SetBusy(connData.id, value)			
+			manager.storage[connData.index-1].SetBusy(connData.id, value)
 		}
 	}
 	return result
@@ -272,7 +270,7 @@ func (manager *ConnectionDataManager) SetClientBusy(cid string, value bool) bool
 
 // testing only (not use it)
 type TestingData interface {
-    GetTestingData() (int64, int64)
+	GetTestingData() (int64, int64)
 }
 
 func (manager ConnectionDataManager) GetTestingData() (int64, int64) {

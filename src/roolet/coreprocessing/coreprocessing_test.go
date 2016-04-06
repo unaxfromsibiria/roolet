@@ -1,10 +1,9 @@
 package coreprocessing_test
 
 import (
-	"testing"
 	"roolet/coreprocessing"
+	"testing"
 )
-
 
 func TestSingleMethodsDict(t *testing.T) {
 	dict := coreprocessing.NewMethodInstructionDict()

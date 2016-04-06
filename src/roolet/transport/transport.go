@@ -1,6 +1,5 @@
 package transport
 
-
 import (
 	"encoding/json"
 	"fmt"
@@ -9,23 +8,24 @@ import (
 const (
 	JSONRpcVersion = "2.0"
 )
+
 // helper
 func dumps(cmd interface{}, endline bool) (string, error) {
-    if data, err := json.Marshal(cmd); err != nil {
-        return "", err
-    } else {
-        if endline {
-            return fmt.Sprintf("%s\n", data), nil
-        } else {
-            return string(data), nil
-        }
-    }
+	if data, err := json.Marshal(cmd); err != nil {
+		return "", err
+	} else {
+		if endline {
+			return fmt.Sprintf("%s\n", data), nil
+		} else {
+			return string(data), nil
+		}
+	}
 }
 
 // use JSON-RPC
 
 type MethodParams struct {
-	Cid string`json:"cid"`
+	Cid string `json:"cid"`
 	// base64
 	Data string `json:"data"`
 	// json
@@ -34,51 +34,51 @@ type MethodParams struct {
 
 type Command struct {
 	Jsonrpc string `json:"jsonrpc"`
-	Id int `json:"id"`
+	Id      int    `json:"id"`
 	// used
 	Method string `json:"method"`
 	Params MethodParams
 }
 
 type ErrorDescription struct {
-	Code int `json:"code"`
+	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
 type Answer struct {
 	Jsonrpc string `json:"jsonrpc"`
-	Id int `json:"id"`
-	Result string `json:"result"`
-	Error ErrorDescription
+	Id      int    `json:"id"`
+	Result  string `json:"result"`
+	Error   ErrorDescription
 }
 
 func (ans *Answer) Dump() (*string, error) {
 	(*ans).Jsonrpc = JSONRpcVersion
-    var resultErr error
-    var result *string
-    if data, err := dumps(ans, true); err != nil {
-        resultErr = err
-    } else {
-        result = &data
-    }
-    return result, resultErr
+	var resultErr error
+	var result *string
+	if data, err := dumps(ans, true); err != nil {
+		resultErr = err
+	} else {
+		result = &data
+	}
+	return result, resultErr
 }
 
 func (ans *Answer) DataDump() *[]byte {
 	(*ans).Jsonrpc = JSONRpcVersion
-    var result *[]byte
-    if data, err := json.Marshal(ans); err == nil {
-        result = &data
-    } else {
-    	result = nil
-    }
-    return result
+	var result *[]byte
+	if data, err := json.Marshal(ans); err == nil {
+		result = &data
+	} else {
+		result = nil
+	}
+	return result
 }
 
 // get simple command
 func NewCommand(id int, cid, method, data string) *Command {
 	cmd := Command{
-		Id: id,
+		Id:     id,
 		Method: method,
 		Params: MethodParams{Data: data, Cid: cid}}
 	return &cmd
@@ -86,14 +86,14 @@ func NewCommand(id int, cid, method, data string) *Command {
 
 func (cmd *Command) Dump() (*string, error) {
 	(*cmd).Jsonrpc = JSONRpcVersion
-    var resultErr error
-    var result *string
-    if data, err := dumps(cmd, true); err != nil {
-        resultErr = err
-    } else {
-        result = &data
-    }
-    return result, resultErr
+	var resultErr error
+	var result *string
+	if data, err := dumps(cmd, true); err != nil {
+		resultErr = err
+	} else {
+		result = &data
+	}
+	return result, resultErr
 }
 
 func (cmd *Command) Load(data *[]byte) error {
@@ -106,9 +106,9 @@ func (cmd Command) String() string {
 
 func NewErrorAnswer(id, code int, msg string) *Answer {
 	result := Answer{
-		Id: id,
+		Id:      id,
 		Jsonrpc: JSONRpcVersion,
-		Error: ErrorDescription{Code: code, Message: msg}}
+		Error:   ErrorDescription{Code: code, Message: msg}}
 	return &result
 }
 

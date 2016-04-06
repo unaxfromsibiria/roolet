@@ -4,10 +4,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
-	"roolet/options"
 	"roolet/helpers"
+	"roolet/options"
 	"strings"
-	
+
 	"github.com/dgrijalva/jwt-go"
 )
 
@@ -24,7 +24,7 @@ func JwtCreate(data string, option *options.SysOption) {
 			data := []string{
 				base64.StdEncoding.EncodeToString([]byte(parts[0])),
 				base64.StdEncoding.EncodeToString([]byte(parts[1]))}
-			
+
 			sig, err := jwt.SigningMethodRS256.Sign(strings.Join(data, "."), key)
 			if err == nil {
 				sig = base64.StdEncoding.EncodeToString([]byte(sig))
@@ -55,7 +55,7 @@ func JwtCheck(data string, option *options.SysOption) {
 					log.Printf("\nCheck passed!\nSignature: %s\n", sig)
 				} else {
 					log.Fatal(err)
-				}				
+				}
 			} else {
 				log.Fatalf("Base64 decode problem: %s with: '%s'\n", err, parts[2])
 			}
@@ -67,7 +67,7 @@ func JwtCheck(data string, option *options.SysOption) {
 	}
 }
 
-// Simple check keys. 
+// Simple check keys.
 func KeysSimpleCheck(data string, option *options.SysOption) {
 	if privKey, err := option.GetPrivKey(); err == nil {
 		if pubKey, err := option.GetPubKey(); err == nil {
@@ -76,16 +76,16 @@ func KeysSimpleCheck(data string, option *options.SysOption) {
 				"%s.%s",
 				base64.StdEncoding.EncodeToString([]byte(rand.CreatePassword(64))),
 				base64.StdEncoding.EncodeToString([]byte(rand.CreatePassword(96))))
-			
+
 			sig, err := jwt.SigningMethodRS256.Sign(mainPart, privKey)
+			if err == nil {
+				err := jwt.SigningMethodRS256.Verify(mainPart, sig, pubKey)
 				if err == nil {
-					err := jwt.SigningMethodRS256.Verify(mainPart, sig, pubKey)
-					if err == nil {
-						log.Printf("Keys from '%s' is correct\n", option.KeyDir)
-					}
-				} else {
-					log.Fatalf("Can't ctrate signature: %s\n", err)
+					log.Printf("Keys from '%s' is correct\n", option.KeyDir)
 				}
+			} else {
+				log.Fatalf("Can't ctrate signature: %s\n", err)
+			}
 		} else {
 			log.Fatalf("Can't open public key! Error: %s\n", err)
 		}

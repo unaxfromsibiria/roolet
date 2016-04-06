@@ -3,29 +3,29 @@ package connectionserver
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
+	"roolet/connectionsupport"
+	"roolet/coreprocessing"
+	"roolet/coresupport"
+	"roolet/options"
+	"roolet/rllogger"
+	"roolet/statistic"
+	"roolet/transport"
 	"sync"
 	"time"
-    "io"
-	"roolet/options"
-	"roolet/connectionsupport"
-	"roolet/coresupport"
-	"roolet/statistic"
-	"roolet/rllogger"
-	"roolet/coreprocessing"
-	"roolet/transport"
 )
 
 const (
-	ServerStatusOn = 1
+	ServerStatusOn  = 1
 	ServerStatusOff = 2
 	// take some default answer
 	ServerStatusBusy = 3
 )
 
 type statusAcceptedObject struct {
-	status int
-	statusChangeLock *sync.RWMutex	
+	status           int
+	statusChangeLock *sync.RWMutex
 }
 
 func (obj *statusAcceptedObject) SetStatus(value int) {
@@ -42,8 +42,8 @@ func (obj *statusAcceptedObject) GetStatus() int {
 
 type ConnectionServer struct {
 	statusAcceptedObject
-	option options.SysOption
-	stat statistic.StatisticUpdater
+	option                options.SysOption
+	stat                  statistic.StatisticUpdater
 	connectionDataManager *connectionsupport.ConnectionDataManager
 }
 
@@ -57,15 +57,15 @@ func (server *ConnectionServer) isAcceptForConnection() bool {
 
 // answer worker
 func connectionWriteProcessing(
-		connection net.Conn,
-		backChannel *chan coreprocessing.CoreInstruction,
-		stat statistic.StatisticUpdater,
-		label string) {
-	// 
+	connection net.Conn,
+	backChannel *chan coreprocessing.CoreInstruction,
+	stat statistic.StatisticUpdater,
+	label string) {
+	//
 	wait := true
 	var newInstruction coreprocessing.CoreInstruction
 	for wait {
-		newInstruction = <- *backChannel
+		newInstruction = <-*backChannel
 		if newInstruction.IsEmpty() {
 			rllogger.Outputf(rllogger.LogWarn, "Closed write process for %s empty instruction!", label)
 			wait = false
@@ -99,20 +99,20 @@ func connectionWriteProcessing(
 }
 
 func (server *ConnectionServer) connectionReadProcessing(
-		connection net.Conn,
-		workerManager *coresupport.CoreWorkerManager,
-		label string) {
+	connection net.Conn,
+	workerManager *coresupport.CoreWorkerManager,
+	label string) {
 	//
 	defer connection.Close()
 	buffer := bufio.NewReader(connection)
-    wait := true
-    hasAnswerChannel := false
+	wait := true
+	hasAnswerChannel := false
 	connectionData := server.connectionDataManager.NewConnection()
 	rllogger.Outputf(rllogger.LogDebug, "new connection %s", connectionData.Cid)
 	sizeBuffer := (*server).option.BufferSize
 
-    for wait {
-    	//
+	for wait {
+		//
 		lineData, _, err := buffer.ReadLine()
 		if err == nil {
 			server.stat.SendMsg("income_data_size", len(lineData))
@@ -132,15 +132,15 @@ func (server *ConnectionServer) connectionReadProcessing(
 			}
 		} else {
 			// has error
-		    if err == io.EOF {
-		        // client break connection
-		        workerManager.BrokenConnection(connectionData)
-		        rllogger.Outputf(rllogger.LogDebug, "broken connection %s", connectionData.Cid)
-		    }
-		    wait = false
+			if err == io.EOF {
+				// client break connection
+				workerManager.BrokenConnection(connectionData)
+				rllogger.Outputf(rllogger.LogDebug, "broken connection %s", connectionData.Cid)
+			}
+			wait = false
 		}
-    }
-    server.connectionDataManager.RemoveConnection(connectionData.Cid)
+	}
+	server.connectionDataManager.RemoveConnection(connectionData.Cid)
 }
 
 func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManager) {
@@ -160,12 +160,12 @@ func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManag
 						rllogger.LogTerminate, "Can't create connection to %s error: %s", socket, err)
 					server.stat.SendMsg("lost_connection_count", 1)
 				} else {
-				    clientAddr := fmt.Sprintf("connection:%s", newConnection.RemoteAddr())
+					clientAddr := fmt.Sprintf("connection:%s", newConnection.RemoteAddr())
 					rllogger.Outputf(rllogger.LogDebug, "new %s", clientAddr)
 					tcpConnection := newConnection.(*net.TCPConn)
 					tcpConnection.SetKeepAlive(true)
 					tcpConnection.SetKeepAlivePeriod(
-					    time.Duration(1 + options.StatusCheckPeriod) * time.Second)
+						time.Duration(1+options.StatusCheckPeriod) * time.Second)
 					server.stat.SendMsg("connection_count", 1)
 					server.connectionReadProcessing(
 						newConnection,
@@ -174,11 +174,10 @@ func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManag
 				}
 			}
 		} else {
-	    	rllogger.Outputf(rllogger.LogTerminate, "Can't start server at %s error: %s", socket, err)
+			rllogger.Outputf(rllogger.LogTerminate, "Can't start server at %s error: %s", socket, err)
 		}
 	}
 }
-
 
 func NewServer(option options.SysOption, stat *statistic.Statistic) *ConnectionServer {
 	stat.AddItem("connection_count", "Client conntection count")
@@ -190,6 +189,6 @@ func NewServer(option options.SysOption, stat *statistic.Statistic) *ConnectionS
 		statusAcceptedObject: statusAcceptedObject{
 			statusChangeLock: new(sync.RWMutex)},
 		option: option,
-		stat: stat}
+		stat:   stat}
 	return &server
 }

@@ -14,7 +14,7 @@ import (
 type StatValueType float32
 
 func (num StatValueType) String() string {
-	if num - StatValueType(int(num)) <= 0 {
+	if num-StatValueType(int(num)) <= 0 {
 		return fmt.Sprintf("%d", int(num))
 	} else {
 		return fmt.Sprintf("%f", num)
@@ -22,13 +22,13 @@ func (num StatValueType) String() string {
 }
 
 const (
-	StatBufferSize = 512
+	StatBufferSize    = 512
 	HandlerCountLimit = 100
-	DefaultIterTime = 5
+	DefaultIterTime   = 5
 )
 
 type StatMsg struct {
-	code string
+	code  string
 	value StatValueType
 }
 
@@ -37,21 +37,30 @@ type StatisticOutHandler func(time.Time, *[]string)
 
 func NewStatMsg(code string, value interface{}) *StatMsg {
 	var statValue StatValueType
-    switch val := value.(type) {
-        case int: statValue = StatValueType(val)
-        case int32: statValue = StatValueType(val)
-        case int64: statValue = StatValueType(val)
-        case uint32: statValue = StatValueType(val)
-        case uint64: statValue = StatValueType(val)
-        case uintptr: statValue = StatValueType(val)
-        case float32: statValue = StatValueType(val)
-        case float64: statValue = StatValueType(val)
-        default: rllogger.Outputf(
-            rllogger.LogTerminate,
-            "Statistic not accept this type: %T", value)
-    }
-    msg := StatMsg{code: code, value: statValue}
-    return &msg
+	switch val := value.(type) {
+	case int:
+		statValue = StatValueType(val)
+	case int32:
+		statValue = StatValueType(val)
+	case int64:
+		statValue = StatValueType(val)
+	case uint32:
+		statValue = StatValueType(val)
+	case uint64:
+		statValue = StatValueType(val)
+	case uintptr:
+		statValue = StatValueType(val)
+	case float32:
+		statValue = StatValueType(val)
+	case float64:
+		statValue = StatValueType(val)
+	default:
+		rllogger.Outputf(
+			rllogger.LogTerminate,
+			"Statistic not accept this type: %T", value)
+	}
+	msg := StatMsg{code: code, value: statValue}
+	return &msg
 }
 
 type StatisticUpdater interface {
@@ -59,17 +68,17 @@ type StatisticUpdater interface {
 }
 
 type Statistic struct {
-	closeChan chan bool
-	messages chan StatMsg
-	calcHandlers []AutoCalcHandler
-	outHandlers []StatisticOutHandler
-	items map[string]StatValueType
-	labels map[string]string
-	silent bool
-	active bool
-	iterTime int
-	msgCount int64
-	lastSendTime time.Time
+	closeChan        chan bool
+	messages         chan StatMsg
+	calcHandlers     []AutoCalcHandler
+	outHandlers      []StatisticOutHandler
+	items            map[string]StatValueType
+	labels           map[string]string
+	silent           bool
+	active           bool
+	iterTime         int
+	msgCount         int64
+	lastSendTime     time.Time
 	activeChangeLock *sync.RWMutex
 }
 
@@ -84,13 +93,16 @@ func statProcessing(stat *Statistic) {
 	defer out()
 	for (*stat).active {
 		select {
-			case msg := <-(*stat).messages: {
+		case msg := <-(*stat).messages:
+			{
 				stat.add(&msg)
 			}
-			case <- (*stat).closeChan: {
+		case <-(*stat).closeChan:
+			{
 				stat.stop()
 			}
-			case now := <- timer.C: {
+		case now := <-timer.C:
+			{
 				(*stat).lastSendTime = now
 				stat.calc()
 				stat.SendResult()
@@ -101,20 +113,20 @@ func statProcessing(stat *Statistic) {
 
 func NewStatistic(option options.SysOption) *Statistic {
 	stat := Statistic{
-		active: true,
+		active:           true,
 		activeChangeLock: new(sync.RWMutex),
-		messages: make(chan StatMsg, StatBufferSize),
-		closeChan: make(chan bool, 1), 
-		iterTime: option.StatisticCheckTime,
-		calcHandlers: make([]AutoCalcHandler, HandlerCountLimit),
-		items: make(map[string]StatValueType),
-		labels: make(map[string]string),
-		silent: !option.Statistic}
-	
+		messages:         make(chan StatMsg, StatBufferSize),
+		closeChan:        make(chan bool, 1),
+		iterTime:         option.StatisticCheckTime,
+		calcHandlers:     make([]AutoCalcHandler, HandlerCountLimit),
+		items:            make(map[string]StatValueType),
+		labels:           make(map[string]string),
+		silent:           !option.Statistic}
+
 	if stat.iterTime < 1 {
 		stat.iterTime = DefaultIterTime
 	}
-	
+
 	go statProcessing(&stat)
 	// save to file support
 	if len(option.StatisticFile) > 0 {
@@ -139,7 +151,7 @@ func NewStatistic(option options.SysOption) *Statistic {
 			}
 			if hasCopy {
 				os.Remove(newFilePath)
-			}	
+			}
 		}
 		stat.AddStatisticOutHandler(logFileSaveHandler)
 	}
@@ -150,7 +162,7 @@ func (stat *Statistic) SendMsg(code string, value interface{}) {
 	(*stat).activeChangeLock.RLock()
 	defer (*stat).activeChangeLock.RUnlock()
 	if !(*stat).silent && (*stat).active {
-		msg := NewStatMsg(code , value)
+		msg := NewStatMsg(code, value)
 		(*stat).messages <- (*msg)
 	}
 }
@@ -192,7 +204,7 @@ func (stat *Statistic) AddItem(code string, label string) {
 }
 
 func (stat *Statistic) AddCalcHandler(handler AutoCalcHandler) {
-	for index := 0; index < HandlerCountLimit; index ++ {
+	for index := 0; index < HandlerCountLimit; index++ {
 		if (*stat).calcHandlers[index] == nil {
 			(*stat).calcHandlers[index] = handler
 			break
@@ -208,7 +220,7 @@ func (stat *Statistic) add(msg *StatMsg) {
 	if (*stat).silent {
 		return
 	}
-	(*stat).msgCount ++
+	(*stat).msgCount++
 	m := *msg
 	var newValue StatValueType
 	if value, exists := (*stat).items[msg.code]; exists {
@@ -220,7 +232,7 @@ func (stat *Statistic) add(msg *StatMsg) {
 }
 
 func (stat *Statistic) calc() {
-	for index := 0; index < HandlerCountLimit; index ++ {
+	for index := 0; index < HandlerCountLimit; index++ {
 		if (*stat).calcHandlers[index] == nil {
 			break
 		} else {
@@ -237,7 +249,7 @@ func (stat *Statistic) stop() {
 
 // testing only (not use it)
 type TestingData interface {
-    GetTestingData() *map[string]float32
+	GetTestingData() *map[string]float32
 }
 
 func (stat Statistic) GetTestingData() *map[string]float32 {

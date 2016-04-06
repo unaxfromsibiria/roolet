@@ -19,9 +19,9 @@ const (
 )
 
 type CoreInstruction struct {
-	Type int
-	Cid string
-	cmd *transport.Command
+	Type   int
+	Cid    string
+	cmd    *transport.Command
 	answer *transport.Answer
 }
 
@@ -30,22 +30,19 @@ func NewExitcCoreInstruction() *CoreInstruction {
 	return &result
 }
 
-
 func NewCoreInstructionForMessage(insType int, cid string, cmd *transport.Command) *CoreInstruction {
 	result := CoreInstruction{Type: TypeInstructionExit}
 	return &result
 }
 
 func (instruction *CoreInstruction) IsEmpty() bool {
-	return (
-		(*instruction).cmd == nil &&
-		(*instruction).answer == nil  &&
+	return ((*instruction).cmd == nil &&
+		(*instruction).answer == nil &&
 		(*instruction).Type == 0)
 }
 
 func (instruction *CoreInstruction) NeedExit() bool {
-	return (
-		(*instruction).cmd == nil &&
+	return ((*instruction).cmd == nil &&
 		(*instruction).Type == TypeInstructionExit)
 }
 
@@ -115,28 +112,28 @@ func (dict *MethodInstructionDict) RegisterClientMethods(methods ...string) {
 type InstructionHandlerMethod func(*Handler, *CoreInstruction) *CoreInstruction
 
 var methods map[int]InstructionHandlerMethod = map[int]InstructionHandlerMethod{
-	// TODO: create another one (or more) module for methods
-	// TypeInstructionSkip: skipHandler
-	// ..
+// TODO: create another one (or more) module for methods
+// TypeInstructionSkip: skipHandler
+// ..
 }
 
 type Handler struct {
-	worker int
-	option options.SysOption
-	stat statistic.StatisticUpdater
+	worker  int
+	option  options.SysOption
+	stat    statistic.StatisticUpdater
 	methods *map[int]InstructionHandlerMethod
 }
 
 func NewHandler(
-		workerIndex int,
-		option options.SysOption,
-		stat statistic.StatisticUpdater) *Handler {
+	workerIndex int,
+	option options.SysOption,
+	stat statistic.StatisticUpdater) *Handler {
 	//
 	handler := Handler{
-		worker: workerIndex,
-		option: option,
+		worker:  workerIndex,
+		option:  option,
 		methods: &methods,
-		stat: stat}
+		stat:    stat}
 	return &handler
 }
 
@@ -144,7 +141,7 @@ func (handler *Handler) Close() {
 	// pass
 }
 
-func (handler *Handler) Execute(ins *CoreInstruction) *CoreInstruction{
+func (handler *Handler) Execute(ins *CoreInstruction) *CoreInstruction {
 	// TODO: delegate to handler.methods
 	return NewExitcCoreInstruction()
 }

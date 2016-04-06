@@ -1,20 +1,20 @@
 package coresupport
 
 import (
-	"roolet/options"
-	"roolet/statistic"
-	"roolet/rllogger"
-	"roolet/transport"
 	"roolet/connectionsupport"
 	"roolet/coreprocessing"
+	"roolet/options"
+	"roolet/rllogger"
+	"roolet/statistic"
+	"roolet/transport"
 )
 
 func worker(
-		index int,
-		instructionsChannel *chan coreprocessing.CoreInstruction,
-		stopSignalChannel *chan bool,
-		outGroups *[]*outChannelGroup,
-		handler *coreprocessing.Handler) {
+	index int,
+	instructionsChannel *chan coreprocessing.CoreInstruction,
+	stopSignalChannel *chan bool,
+	outGroups *[]*outChannelGroup,
+	handler *coreprocessing.Handler) {
 	//
 	rllogger.Outputf(rllogger.LogDebug, "Worker %d started...", index)
 	active := true
@@ -22,26 +22,28 @@ func worker(
 	for active {
 		// wait new instruction or finish
 		select {
-			case <- *stopSignalChannel: {
+		case <-*stopSignalChannel:
+			{
 				active = false
 			}
-			case instruction := <- *instructionsChannel: {
+		case instruction := <-*instructionsChannel:
+			{
 				newInstruction := handler.Execute(&instruction)
 				// TODO: method for extract 2 int values
 				cid := (*newInstruction).Cid
 				if connectionData, err := connectionsupport.ExtractConnectionData(cid); err == nil {
 					resIndex, id := connectionData.GetResourceIndex(), connectionData.GetId()
-					 if !(*outGroups)[resIndex].Send(id, newInstruction) {
-					 	rllogger.Outputf(
-					 		rllogger.LogError,
-					 		"Can't send back instruction for %s worker: %d", cid, index)
-					 }					
+					if !(*outGroups)[resIndex].Send(id, newInstruction) {
+						rllogger.Outputf(
+							rllogger.LogError,
+							"Can't send back instruction for %s worker: %d", cid, index)
+					}
 				} else {
 					rllogger.Outputf(
-					 	rllogger.LogError,
-					 	"CID format error! value: %s worker: %d", cid, index)
+						rllogger.LogError,
+						"CID format error! value: %s worker: %d", cid, index)
 				}
-				
+
 			}
 		}
 	}
@@ -58,7 +60,7 @@ func newOutChannelGroup() *outChannelGroup {
 	objPtr := connectionsupport.NewAsyncSafeObject()
 	group := outChannelGroup{
 		AsyncSafeObject: *objPtr,
-		channels: make(map[int64]*chan coreprocessing.CoreInstruction)}
+		channels:        make(map[int64]*chan coreprocessing.CoreInstruction)}
 	return &group
 }
 
@@ -88,7 +90,7 @@ func (group *outChannelGroup) Send(id int64, instruction *coreprocessing.CoreIns
 func (group *outChannelGroup) Append(id int64, channelPtr *chan coreprocessing.CoreInstruction) {
 	if !group.exists(id) {
 		group.put(id, channelPtr)
-	} 
+	}
 }
 
 func (group *outChannelGroup) SendExit() {
@@ -101,14 +103,14 @@ func (group *outChannelGroup) SendExit() {
 }
 
 type CoreWorkerManager struct {
-	options options.SysOption
-	OutSignalChannel chan bool
+	options                 options.SysOption
+	OutSignalChannel        chan bool
 	workerStopSignalChannel chan bool
-	instructionsChannel chan coreprocessing.CoreInstruction
-	outChannels []*outChannelGroup
+	instructionsChannel     chan coreprocessing.CoreInstruction
+	outChannels             []*outChannelGroup
 	// onсe instance everywhere
 	methodsDict *coreprocessing.MethodInstructionDict
-	statistic statistic.StatisticUpdater
+	statistic   statistic.StatisticUpdater
 }
 
 func NewCoreWorkerManager(option options.SysOption, stat *statistic.Statistic) *CoreWorkerManager {
@@ -116,23 +118,23 @@ func NewCoreWorkerManager(option options.SysOption, stat *statistic.Statistic) *
 	stat.AddItem("processed", "Processed messages count")
 	stat.AddItem("skip_cmd", "Command with skip instruction count")
 	manager := CoreWorkerManager{
-		OutSignalChannel: make(chan bool, 1),
+		OutSignalChannel:        make(chan bool, 1),
 		workerStopSignalChannel: make(chan bool, option.Workers),
-		instructionsChannel: make(chan coreprocessing.CoreInstruction, option.BufferSize),
-		outChannels: make([]*outChannelGroup, connectionsupport.GroupCount),
-		methodsDict: coreprocessing.NewMethodInstructionDict(),
-		statistic: stat,
-		options: option}
+		instructionsChannel:     make(chan coreprocessing.CoreInstruction, option.BufferSize),
+		outChannels:             make([]*outChannelGroup, connectionsupport.GroupCount),
+		methodsDict:             coreprocessing.NewMethodInstructionDict(),
+		statistic:               stat,
+		options:                 option}
 	return &manager
 }
 
 func (mng *CoreWorkerManager) Start() {
 	manager := *mng
 	count := manager.options.Workers
-	for index := 0; index < count; index ++ {
+	for index := 0; index < count; index++ {
 		handler := coreprocessing.NewHandler(index, manager.options, manager.statistic)
 		go worker(
-			index + 1,
+			index+1,
 			&(manager.instructionsChannel),
 			&(manager.workerStopSignalChannel),
 			&(manager.outChannels),
@@ -143,7 +145,7 @@ func (mng *CoreWorkerManager) Start() {
 func (mng *CoreWorkerManager) Stop() {
 	manager := *mng
 	count := manager.options.Workers
-	for index := 0; index < count; index ++ {
+	for index := 0; index < count; index++ {
 		manager.workerStopSignalChannel <- true
 	}
 	close(manager.instructionsChannel)
@@ -164,22 +166,22 @@ func (mng *CoreWorkerManager) BrokenConnection(connData *connectionsupport.Conne
 }
 
 func (mng *CoreWorkerManager) AppendBackChannel(
-		connData *connectionsupport.ConnectionData,
-		backChannel *chan coreprocessing.CoreInstruction) {
+	connData *connectionsupport.ConnectionData,
+	backChannel *chan coreprocessing.CoreInstruction) {
 	//
 	mng.outChannels[connData.GetResourceIndex()].Append(connData.GetId(), backChannel)
 }
 
 func (mng *CoreWorkerManager) Processing(
-		cmd *transport.Command,
-		connDataManager *connectionsupport.ConnectionDataManager,
-		connData *connectionsupport.ConnectionData) {
+	cmd *transport.Command,
+	connDataManager *connectionsupport.ConnectionDataManager,
+	connData *connectionsupport.ConnectionData) {
 	// select instraction type by method of command
 	instruction := coreprocessing.NewCoreInstructionForMessage(
 		mng.methodsDict.Get((*cmd).Method), (*connData).Cid, cmd)
 
 	if instruction.Type == coreprocessing.TypeInstructionSkip {
-		mng.statistic.SendMsg("skip_cmd", 1)	
+		mng.statistic.SendMsg("skip_cmd", 1)
 	}
 	mng.instructionsChannel <- (*instruction)
 }
