@@ -8,10 +8,11 @@ import (
 	"time"
     "io"
 	"roolet/options"
+	"roolet/connectionsupport"
 	"roolet/coresupport"
 	"roolet/statistic"
 	"roolet/rllogger"
-	"roolet/connectionsupport"
+	"roolet/coreprocessing"
 	"roolet/transport"
 )
 
@@ -57,15 +58,16 @@ func (server *ConnectionServer) isAcceptForConnection() bool {
 // answer worker
 func connectionWriteProcessing(
 		connection net.Conn,
-		backChannel *chan coresupport.CoreInstruction,
+		backChannel *chan coreprocessing.CoreInstruction,
 		stat statistic.StatisticUpdater,
 		label string) {
 	// 
 	wait := true
-	var newInstruction coresupport.CoreInstruction
+	var newInstruction coreprocessing.CoreInstruction
 	for wait {
 		newInstruction = <- *backChannel
 		if newInstruction.IsEmpty() {
+			rllogger.Outputf(rllogger.LogWarn, "Closed write process for %s empty instruction!", label)
 			wait = false
 		} else {
 			// write
@@ -87,8 +89,13 @@ func connectionWriteProcessing(
 			} else {
 				rllogger.Outputf(rllogger.LogWarn, "Empty answer to %s?", label)
 			}
+			if newInstruction.NeedExit() {
+				wait = false
+				rllogger.Outputf(rllogger.LogDebug, "Closed write process for %s from instruction.", label)
+			}
 		}
 	}
+	close(*backChannel)
 }
 
 func (server *ConnectionServer) connectionReadProcessing(
@@ -113,7 +120,7 @@ func (server *ConnectionServer) connectionReadProcessing(
 				workerManager.Processing(cmd, server.connectionDataManager, connectionData)
 				if !hasAnswerChannel {
 					// create
-					backChannel := make(chan coresupport.CoreInstruction, sizeBuffer)
+					backChannel := make(chan coreprocessing.CoreInstruction, sizeBuffer)
 					// dont like closure, only realy need
 					go connectionWriteProcessing(connection, &backChannel, server.stat, label)
 					workerManager.AppendBackChannel(connectionData, &backChannel)

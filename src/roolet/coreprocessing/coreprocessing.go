@@ -1,8 +1,11 @@
 package coreprocessing
 
 import (
-	"roolet/rllogger"
 	"roolet/connectionsupport"
+	"roolet/options"
+	"roolet/rllogger"
+	"roolet/statistic"
+	"roolet/transport"
 )
 
 const (
@@ -15,6 +18,45 @@ const (
 	TypeInstructionExternal = 100
 )
 
+type CoreInstruction struct {
+	Type int
+	Cid string
+	cmd *transport.Command
+	answer *transport.Answer
+}
+
+func NewExitcCoreInstruction() *CoreInstruction {
+	result := CoreInstruction{Type: TypeInstructionExit}
+	return &result
+}
+
+
+func NewCoreInstructionForMessage(insType int, cid string, cmd *transport.Command) *CoreInstruction {
+	result := CoreInstruction{Type: TypeInstructionExit}
+	return &result
+}
+
+func (instruction *CoreInstruction) IsEmpty() bool {
+	return (
+		(*instruction).cmd == nil &&
+		(*instruction).answer == nil  &&
+		(*instruction).Type == 0)
+}
+
+func (instruction *CoreInstruction) NeedExit() bool {
+	return (
+		(*instruction).cmd == nil &&
+		(*instruction).Type == TypeInstructionExit)
+}
+
+func (instruction *CoreInstruction) GetCommand() (*transport.Command, bool) {
+	return (*instruction).cmd, (*instruction).cmd == nil
+}
+
+func (instruction *CoreInstruction) GetAnswer() (*transport.Answer, bool) {
+	return (*instruction).answer, (*instruction).answer == nil
+}
+
 type MethodInstructionDict struct {
 	connectionsupport.AsyncSafeObject
 	content map[string]int
@@ -25,7 +67,8 @@ var onceMethodInstructionDict MethodInstructionDict = MethodInstructionDict{
 	content: map[string]int{
 		"auth": TypeInstructionAuth,
 		"ping": TypeInstructionPing,
-		"exit": TypeInstructionSkip}}
+		"quit": TypeInstructionExit,
+		"exit": TypeInstructionExit}}
 
 func NewMethodInstructionDict() *MethodInstructionDict {
 	// use like singleton
@@ -67,4 +110,41 @@ func (dict *MethodInstructionDict) RegisterClientMethods(methods ...string) {
 			dict.Unlock(true)
 		}
 	}
+}
+
+type InstructionHandlerMethod func(*Handler, *CoreInstruction) *CoreInstruction
+
+var methods map[int]InstructionHandlerMethod = map[int]InstructionHandlerMethod{
+	// TODO: create another one (or more) module for methods
+	// TypeInstructionSkip: skipHandler
+	// ..
+}
+
+type Handler struct {
+	worker int
+	option options.SysOption
+	stat statistic.StatisticUpdater
+	methods *map[int]InstructionHandlerMethod
+}
+
+func NewHandler(
+		workerIndex int,
+		option options.SysOption,
+		stat statistic.StatisticUpdater) *Handler {
+	//
+	handler := Handler{
+		worker: workerIndex,
+		option: option,
+		methods: &methods,
+		stat: stat}
+	return &handler
+}
+
+func (handler *Handler) Close() {
+	// pass
+}
+
+func (handler *Handler) Execute(ins *CoreInstruction) *CoreInstruction{
+	// TODO: delegate to handler.methods
+	return NewExitcCoreInstruction()
 }
