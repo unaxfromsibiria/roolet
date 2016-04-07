@@ -7,6 +7,8 @@ import (
 
 const (
 	JSONRpcVersion = "2.0"
+	// errors
+	ErrorCodeInternalProblem = 1
 )
 
 // helper
@@ -46,10 +48,10 @@ type ErrorDescription struct {
 }
 
 type Answer struct {
-	Jsonrpc string `json:"jsonrpc"`
-	Id      int    `json:"id"`
-	Result  string `json:"result"`
-	Error   ErrorDescription
+	Jsonrpc string           `json:"jsonrpc"`
+	Id      int              `json:"id"`
+	Result  string           `json:"result"`
+	Error   ErrorDescription `json:"error"`
 }
 
 func (ans *Answer) Dump() (*string, error) {
@@ -98,6 +100,11 @@ func (cmd *Command) Dump() (*string, error) {
 
 func (cmd *Command) Load(data *[]byte) error {
 	return json.Unmarshal(*data, cmd)
+}
+
+func (cmd *Command) CreateAnswer() *Answer {
+	result := Answer{Id: (*cmd).Id, Jsonrpc: (*cmd).Jsonrpc}
+	return &result
 }
 
 func (cmd Command) String() string {

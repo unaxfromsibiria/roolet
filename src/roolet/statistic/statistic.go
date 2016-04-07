@@ -178,7 +178,7 @@ func (stat *Statistic) SendResult() {
 		return
 	}
 	var lines []string
-	lines = append(lines, fmt.Sprintf("message count: %d", (*stat).msgCount))
+	lines = append(lines, fmt.Sprintf("Message count: %d", (*stat).msgCount))
 	var label string
 	for code, value := range (*stat).items {
 		if itemLabel, exists := (*stat).labels[code]; exists {

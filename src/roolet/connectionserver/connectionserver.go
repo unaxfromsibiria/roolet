@@ -49,6 +49,7 @@ type ConnectionServer struct {
 
 func (server *ConnectionServer) Stop() {
 	server.SetStatus(ServerStatusOff)
+	rllogger.Output(rllogger.LogInfo, "Connection server stopping..")
 }
 
 func (server *ConnectionServer) isAcceptForConnection() bool {
@@ -140,10 +141,16 @@ func (server *ConnectionServer) connectionReadProcessing(
 			wait = false
 		}
 	}
+	server.stat.SendMsg("connection_count", -1)
+	workerManager.RemoveBackChannel(connectionData)
 	server.connectionDataManager.RemoveConnection(connectionData.Cid)
 }
 
 func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManager) {
+	go server.startListener(workerManager)
+}
+
+func (server *ConnectionServer) startListener(workerManager *coresupport.CoreWorkerManager) {
 	if server.GetStatus() != ServerStatusOn {
 		server.SetStatus(ServerStatusOn)
 		options := (*server).option

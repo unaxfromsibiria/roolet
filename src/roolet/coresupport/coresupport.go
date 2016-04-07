@@ -93,10 +93,18 @@ func (group *outChannelGroup) Append(id int64, channelPtr *chan coreprocessing.C
 	}
 }
 
+func (group *outChannelGroup) Remove(id int64) {
+	if group.exists(id) {
+		group.Lock(true)
+		defer group.Unlock(true)
+		delete((*group).channels, id)
+	}
+}
+
 func (group *outChannelGroup) SendExit() {
 	group.Lock(true)
 	defer group.Unlock(true)
-	exitInstruction := coreprocessing.NewExitcCoreInstruction()
+	exitInstruction := coreprocessing.NewExitCoreInstruction()
 	for _, outChannelPtr := range (*group).channels {
 		(*outChannelPtr) <- (*exitInstruction)
 	}
@@ -148,6 +156,7 @@ func (mng *CoreWorkerManager) Stop() {
 	for index := 0; index < count; index++ {
 		manager.workerStopSignalChannel <- true
 	}
+	rllogger.Output(rllogger.LogInfo, "Stoping workers..")
 	close(manager.instructionsChannel)
 	close(manager.workerStopSignalChannel)
 	for _, groupPtr := range manager.outChannels {
@@ -155,6 +164,7 @@ func (mng *CoreWorkerManager) Stop() {
 			groupPtr.SendExit()
 		}
 	}
+	manager.OutSignalChannel <- true
 }
 
 func (mng *CoreWorkerManager) Close() {
@@ -169,7 +179,18 @@ func (mng *CoreWorkerManager) AppendBackChannel(
 	connData *connectionsupport.ConnectionData,
 	backChannel *chan coreprocessing.CoreInstruction) {
 	//
-	mng.outChannels[connData.GetResourceIndex()].Append(connData.GetId(), backChannel)
+	index := connData.GetResourceIndex()
+	if mng.outChannels[index] == nil {
+		mng.outChannels[index] = newOutChannelGroup()
+	}
+	mng.outChannels[index].Append(connData.GetId(), backChannel)
+}
+
+func (mng *CoreWorkerManager) RemoveBackChannel(connData *connectionsupport.ConnectionData) {
+	index := connData.GetResourceIndex()
+	if mng.outChannels[index] != nil {
+		mng.outChannels[index].Remove(connData.GetId())
+	}
 }
 
 func (mng *CoreWorkerManager) Processing(

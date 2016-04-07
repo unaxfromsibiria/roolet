@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	TypeInstructionSkip = 0
-	TypeInstructionExit = 10
+	TypeInstructionSkip    = 0
+	TypeInstructionProblem = 1
+	TypeInstructionExit    = 10
 	// turnoff it after
 	TypeInstructionPing = 20
 	TypeInstructionAuth = 30
@@ -25,14 +26,31 @@ type CoreInstruction struct {
 	answer *transport.Answer
 }
 
-func NewExitcCoreInstruction() *CoreInstruction {
+func NewExitCoreInstruction() *CoreInstruction {
 	result := CoreInstruction{Type: TypeInstructionExit}
 	return &result
 }
 
-func NewCoreInstructionForMessage(insType int, cid string, cmd *transport.Command) *CoreInstruction {
-	result := CoreInstruction{Type: TypeInstructionExit}
+func NewCoreInstruction(insType int) *CoreInstruction {
+	result := CoreInstruction{Type: insType}
 	return &result
+}
+
+func NewCoreInstructionForMessage(insType int, cid string, cmd *transport.Command) *CoreInstruction {
+	result := CoreInstruction{Type: insType, Cid: cid, cmd: cmd}
+	return &result
+}
+
+func (instruction *CoreInstruction) MakeErrAnswer(code int, msg string) *transport.Answer {
+	answerPtr := instruction.cmd.CreateAnswer()
+	(*answerPtr).Error = transport.ErrorDescription{Code: code, Message: msg}
+	return answerPtr
+}
+
+func (instruction *CoreInstruction) MakeOkAnswer(result string) *transport.Answer {
+	answerPtr := instruction.cmd.CreateAnswer()
+	(*answerPtr).Result = result
+	return answerPtr
 }
 
 func (instruction *CoreInstruction) IsEmpty() bool {
@@ -47,11 +65,11 @@ func (instruction *CoreInstruction) NeedExit() bool {
 }
 
 func (instruction *CoreInstruction) GetCommand() (*transport.Command, bool) {
-	return (*instruction).cmd, (*instruction).cmd == nil
+	return (*instruction).cmd, (*instruction).cmd != nil
 }
 
 func (instruction *CoreInstruction) GetAnswer() (*transport.Answer, bool) {
-	return (*instruction).answer, (*instruction).answer == nil
+	return (*instruction).answer, (*instruction).answer != nil
 }
 
 type MethodInstructionDict struct {
@@ -109,13 +127,20 @@ func (dict *MethodInstructionDict) RegisterClientMethods(methods ...string) {
 	}
 }
 
+// common methods
+func exitHandler(handler *Handler, inInstruction *CoreInstruction) *CoreInstruction {
+	outInstruction := NewExitCoreInstruction()
+	(*outInstruction).answer = inInstruction.MakeOkAnswer("{\"ok\": true}")
+	return outInstruction
+}
+
 type InstructionHandlerMethod func(*Handler, *CoreInstruction) *CoreInstruction
 
 var methods map[int]InstructionHandlerMethod = map[int]InstructionHandlerMethod{
-// TODO: create another one (or more) module for methods
-// TypeInstructionSkip: skipHandler
-// ..
-}
+	// TODO: create another one (or more) module for methods
+	// TypeInstructionSkip: skipHandler
+	// ..
+	TypeInstructionExit: exitHandler}
 
 type Handler struct {
 	worker  int
@@ -142,6 +167,18 @@ func (handler *Handler) Close() {
 }
 
 func (handler *Handler) Execute(ins *CoreInstruction) *CoreInstruction {
-	// TODO: delegate to handler.methods
-	return NewExitcCoreInstruction()
+	var outIns *CoreInstruction
+	if method, exists := methods[ins.Type]; exists {
+		outIns = method(handler, ins)
+	} else {
+		// send error
+		outIns = NewCoreInstruction(TypeInstructionProblem)
+		(*outIns).answer = ins.MakeErrAnswer(
+			transport.ErrorCodeInternalProblem, "Not implimented handler for this type!")
+		rllogger.Outputf(
+			rllogger.LogError, "Unknown instruction type '%d' from %s", ins.Type, ins.Cid)
+	}
+	// copy cid always
+	(*outIns).Cid = (*ins).Cid
+	return outIns
 }
