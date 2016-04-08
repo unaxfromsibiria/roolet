@@ -47,21 +47,36 @@ type ErrorDescription struct {
 	Message string `json:"message"`
 }
 
+type baseAnswer struct {
+	Jsonrpc string `json:"jsonrpc"`
+	Id      int    `json:"id"`
+	Result  string `json:"result"`
+}
+
 type Answer struct {
-	Jsonrpc string           `json:"jsonrpc"`
-	Id      int              `json:"id"`
-	Result  string           `json:"result"`
-	Error   ErrorDescription `json:"error"`
+	baseAnswer
+	Error ErrorDescription `json:"error"`
 }
 
 func (ans *Answer) Dump() (*string, error) {
 	(*ans).Jsonrpc = JSONRpcVersion
 	var resultErr error
 	var result *string
-	if data, err := dumps(ans, true); err != nil {
-		resultErr = err
+	if ans.Error.Code > 0 {
+		ans.Result = ""
+		if data, err := dumps(ans, true); err == nil {
+			result = &data
+		} else {
+			resultErr = err
+		}
 	} else {
-		result = &data
+		// no error
+		clearAns := (*ans).baseAnswer
+		if data, err := dumps(&clearAns, true); err == nil {
+			result = &data
+		} else {
+			resultErr = err
+		}
 	}
 	return result, resultErr
 }
@@ -69,10 +84,20 @@ func (ans *Answer) Dump() (*string, error) {
 func (ans *Answer) DataDump() *[]byte {
 	(*ans).Jsonrpc = JSONRpcVersion
 	var result *[]byte
-	if data, err := json.Marshal(ans); err == nil {
-		result = &data
+	if ans.Error.Code > 0 {
+		ans.Result = ""
+		if data, err := json.Marshal(ans); err == nil {
+			result = &data
+		} else {
+			result = nil
+		}
 	} else {
-		result = nil
+		clearAns := (*ans).baseAnswer
+		if data, err := json.Marshal(&clearAns); err == nil {
+			result = &data
+		} else {
+			result = nil
+		}
 	}
 	return result
 }
@@ -103,7 +128,9 @@ func (cmd *Command) Load(data *[]byte) error {
 }
 
 func (cmd *Command) CreateAnswer() *Answer {
-	result := Answer{Id: (*cmd).Id, Jsonrpc: (*cmd).Jsonrpc}
+	result := Answer{}
+	result.Id = (*cmd).Id
+	result.Jsonrpc = (*cmd).Jsonrpc
 	return &result
 }
 
@@ -112,15 +139,17 @@ func (cmd Command) String() string {
 }
 
 func NewErrorAnswer(id, code int, msg string) *Answer {
-	result := Answer{
-		Id:      id,
-		Jsonrpc: JSONRpcVersion,
-		Error:   ErrorDescription{Code: code, Message: msg}}
+	result := Answer{Error: ErrorDescription{Code: code, Message: msg}}
+	result.Jsonrpc = JSONRpcVersion
+	result.Id = id
 	return &result
 }
 
 func NewAnswer(id int, res string) *Answer {
-	result := Answer{Id: id, Result: res, Jsonrpc: JSONRpcVersion}
+	result := Answer{}
+	result.Id = id
+	result.Result = res
+	result.Jsonrpc = JSONRpcVersion
 	return &result
 }
 

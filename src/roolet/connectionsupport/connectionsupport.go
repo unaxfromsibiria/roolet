@@ -48,6 +48,7 @@ type ConnectionData struct {
 	// [1...n]
 	index int
 	id    int64
+	auth  bool
 }
 
 func newConnectionData(prefix string, id int64, index int) *ConnectionData {

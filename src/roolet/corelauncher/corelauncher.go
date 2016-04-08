@@ -5,6 +5,7 @@ import (
 	"os/signal"
 	"roolet/connectionserver"
 	"roolet/coresupport"
+	"roolet/coremethods"
 	"roolet/options"
 	"roolet/rllogger"
 	"roolet/statistic"
@@ -15,6 +16,7 @@ func Launch(option *options.SysOption) {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt)
 	signal.Notify(signalChannel, syscall.SIGTERM)
+	coremethods.Setup()
 	mustExit := false
 	stat := statistic.NewStatistic(*option)
 	manager := coresupport.NewCoreWorkerManager(*option, stat)

@@ -93,6 +93,11 @@ func connectionWriteProcessing(
 			if newInstruction.NeedExit() {
 				wait = false
 				rllogger.Outputf(rllogger.LogDebug, "Closed write process for %s from instruction.", label)
+				err := connection.Close()
+				if err != nil {
+					// wait = true ??
+					rllogger.Outputf(rllogger.LogError, "Close connection %s problem: %s", label, err)
+				}
 			}
 		}
 	}
@@ -109,7 +114,8 @@ func (server *ConnectionServer) connectionReadProcessing(
 	wait := true
 	hasAnswerChannel := false
 	connectionData := server.connectionDataManager.NewConnection()
-	rllogger.Outputf(rllogger.LogDebug, "new connection %s", connectionData.Cid)
+	// TODO: rllogger.LogDebug
+	rllogger.Outputf(rllogger.LogInfo, "new connection %s", connectionData.Cid)
 	sizeBuffer := (*server).option.BufferSize
 
 	for wait {
@@ -144,6 +150,8 @@ func (server *ConnectionServer) connectionReadProcessing(
 	server.stat.SendMsg("connection_count", -1)
 	workerManager.RemoveBackChannel(connectionData)
 	server.connectionDataManager.RemoveConnection(connectionData.Cid)
+	// TODO: rllogger.LogDebug
+	rllogger.Outputf(rllogger.LogInfo, "out connection %s", connectionData.Cid)
 }
 
 func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManager) {

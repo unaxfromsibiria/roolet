@@ -15,6 +15,7 @@ const (
 	// turnoff it after
 	TypeInstructionPing = 20
 	TypeInstructionAuth = 30
+	TypeInstructionPong = 40
 	// method of client
 	TypeInstructionExternal = 100
 )
@@ -70,6 +71,10 @@ func (instruction *CoreInstruction) GetCommand() (*transport.Command, bool) {
 
 func (instruction *CoreInstruction) GetAnswer() (*transport.Answer, bool) {
 	return (*instruction).answer, (*instruction).answer != nil
+}
+
+func (instruction *CoreInstruction) SetAnswer(answer *transport.Answer) {
+	(*instruction).answer = answer
 }
 
 type MethodInstructionDict struct {
@@ -141,6 +146,10 @@ var methods map[int]InstructionHandlerMethod = map[int]InstructionHandlerMethod{
 	// TypeInstructionSkip: skipHandler
 	// ..
 	TypeInstructionExit: exitHandler}
+
+func SetupMethod(insType int, method InstructionHandlerMethod) {
+	methods[insType] = method
+}
 
 type Handler struct {
 	worker  int
