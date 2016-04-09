@@ -1,9 +1,55 @@
 package coremethods
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"roolet/coreprocessing"
+	"roolet/cryptosupport"
+	"roolet/options"
+	"roolet/rllogger"
+	"roolet/transport"
 )
+
+type AuthData struct {
+	Key   string
+	Token string
+}
+
+func (auth *AuthData) Load(data string) error {
+	if loadErr := json.Unmarshal([]byte(data), auth); loadErr != nil {
+		return loadErr
+	} else {
+		if len(auth.Key) < 1 {
+			return errors.New("Empty data for auth procedure.")
+		} else {
+			return nil
+		}
+	}
+}
+
+func (auth *AuthData) Check(option options.SysOption) error {
+	var result error
+	if key, err := option.GetClientPubKey(auth.Key); err == nil {
+		if err := cryptosupport.Check(key, auth.Token); err != nil {
+			result = err
+		}
+	} else {
+		result = err
+	}
+	return result
+}
+
+func newAuthData(params transport.MethodParams) (*AuthData, error) {
+	rec := AuthData{}
+	err := rec.Load(params.Json)
+	if err == nil {
+		rec.Token = params.Data
+		return &rec, nil
+	} else {
+		return nil, err
+	}
+}
 
 // return date size in result
 func ping(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
@@ -24,13 +70,43 @@ func ping(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction
 
 // check token by client public key
 func auth(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
-	// TODO
 	// client sends in params:
 	//  - json: {"key": "<key name>"}
 	//  - data: "<base64 token string, use JWT protocol (random data inside)>"
-	// Here getting (search on option.KeyDir) client public key by name (in command params)
-	// and check it using methods in module "cryptosupport"
-	return nil
+	// getting (search on option.KeyDir) client public key by name (in command params)
+	handler.Stat.AddOneMsg("auth_request")
+	var result *coreprocessing.CoreInstruction
+	var resultErr error
+	var errCode int
+	if cmd, exists := inIns.GetCommand(); exists {
+		if authData, err := newAuthData(cmd.Params); err == nil {
+			if err := authData.Check(handler.Option); err != nil {
+				errCode = transport.ErrorCodeMethodAuthFailed
+				resultErr = err
+			}
+		} else {
+			resultErr = err
+			errCode = transport.ErrorCodeMethodParamsFormatWrong
+		}
+	} else {
+		errCode = transport.ErrorCodeCommandFormatWrong
+		resultErr = errors.New("Not found command in instruction.")
+	}
+	var answer *transport.Answer
+	var insType int
+	if errCode > 0 {
+		answer = inIns.MakeErrAnswer(errCode, fmt.Sprint(resultErr))
+		insType = coreprocessing.TypeInstructionProblem
+		rllogger.Outputf(rllogger.LogWarn, "Failed auth from %s with error: %s", inIns.Cid, resultErr)
+	} else {
+		handler.Stat.AddOneMsg("auth_successfull")
+		answer = inIns.MakeOkAnswer("{\"auth\":true}")
+		insType = coreprocessing.TypeInstructionPing
+		rllogger.Outputf(rllogger.LogDebug, "Successfull auth from %s", inIns.Cid)
+	}
+	result = coreprocessing.NewCoreInstruction(insType)
+	result.SetAnswer(answer)
+	return result
 }
 
 func Setup() {

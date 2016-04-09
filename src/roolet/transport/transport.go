@@ -9,6 +9,9 @@ const (
 	JSONRpcVersion = "2.0"
 	// errors
 	ErrorCodeInternalProblem = 1
+	ErrorCodeCommandFormatWrong = 2
+	ErrorCodeMethodParamsFormatWrong = 3
+	ErrorCodeMethodAuthFailed = 4
 )
 
 // helper

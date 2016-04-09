@@ -65,6 +65,7 @@ func NewStatMsg(code string, value interface{}) *StatMsg {
 
 type StatisticUpdater interface {
 	SendMsg(code string, value interface{})
+	AddOneMsg(code string)
 }
 
 type Statistic struct {
@@ -165,6 +166,10 @@ func (stat *Statistic) SendMsg(code string, value interface{}) {
 		msg := NewStatMsg(code, value)
 		(*stat).messages <- (*msg)
 	}
+}
+
+func (stat *Statistic) AddOneMsg(code string) {
+	stat.SendMsg(code, 1)
 }
 
 func (stat *Statistic) Close() {

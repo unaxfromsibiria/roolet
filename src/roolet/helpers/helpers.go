@@ -15,6 +15,7 @@ import (
 
 const (
 	acceptCahrs         = "abcdefghijkmnpqrstuvwxyz9876543210"
+	acceptHexCahrs      = "abcdef9876543210"
 	DefaultPasswordSize = 64
 	randPartSize        = 8
 )
@@ -89,15 +90,23 @@ func (sysRand *SysRandom) CreateTaskId() string {
 	return fmt.Sprintf("%x", sha256.Sum224([]byte(src)))
 }
 
-func (sysRand *SysRandom) GetShotPrefix() string {
+func (sysRand *SysRandom) getPrefix(base string) string {
 	buf := make([]byte, randPartSize)
-	n := int(len(acceptCahrs))
+	n := int(len(base))
 	var index int
 	for i := 0; i < randPartSize; i++ {
 		index = sysRand.Intn(n)
-		buf[i] = acceptCahrs[index]
+		buf[i] = base[index]
 	}
 	return fmt.Sprintf("%s", buf)
+}
+
+func (sysRand *SysRandom) GetShotPrefix() string {
+	return sysRand.getPrefix(acceptCahrs)
+}
+
+func (sysRand *SysRandom) GetShotHexPrefix() string {
+	return sysRand.getPrefix(acceptHexCahrs)
 }
 
 func (sysRand *SysRandom) Select(src *[]string) string {

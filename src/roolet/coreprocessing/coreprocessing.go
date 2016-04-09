@@ -16,6 +16,7 @@ const (
 	TypeInstructionPing = 20
 	TypeInstructionAuth = 30
 	TypeInstructionPong = 40
+	TypeInstructionStatus = 50
 	// method of client
 	TypeInstructionExternal = 100
 )
@@ -152,9 +153,9 @@ func SetupMethod(insType int, method InstructionHandlerMethod) {
 }
 
 type Handler struct {
+	Option  options.SysOption
+	Stat    statistic.StatisticUpdater
 	worker  int
-	option  options.SysOption
-	stat    statistic.StatisticUpdater
 	methods *map[int]InstructionHandlerMethod
 }
 
@@ -165,9 +166,9 @@ func NewHandler(
 	//
 	handler := Handler{
 		worker:  workerIndex,
-		option:  option,
+		Option:  option,
 		methods: &methods,
-		stat:    stat}
+		Stat:    stat}
 	return &handler
 }
 

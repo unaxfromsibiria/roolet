@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"io/ioutil"
 	"roolet/helpers"
 	"roolet/rllogger"
@@ -15,6 +16,7 @@ import (
 const (
 	pubKeyFileName  = "key.pub"
 	privKeyFileName = "key.priv"
+	publicKeySubDir = "pub"
 )
 
 type SysOption struct {
@@ -64,6 +66,16 @@ type OptionLoder interface {
 
 type JsonOptionSrc struct {
 	FilePath string
+}
+
+func (option SysOption) GetClientPubKey(keyName string) (*rsa.PublicKey, error) {
+	keyDir := path.Join(option.KeyDir, publicKeySubDir)
+	filePath := helpers.GetFullFilePath(keyDir, keyName)
+	if key, err := ioutil.ReadFile(filePath); err != nil {
+		return nil, err
+	} else {
+		return jwt.ParseRSAPublicKeyFromPEM(key)
+	}
 }
 
 func (option SysOption) GetPubKey() (*rsa.PublicKey, error) {

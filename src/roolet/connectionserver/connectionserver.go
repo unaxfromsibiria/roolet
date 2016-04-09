@@ -200,6 +200,9 @@ func NewServer(option options.SysOption, stat *statistic.Statistic) *ConnectionS
 	stat.AddItem("outcome_data_size", "Outcome data size")
 	stat.AddItem("bad_command_count", "Format error command count")
 	stat.AddItem("lost_connection_count", "Lost connection count")
+	stat.AddItem("auth_request", "Request for auth count")
+	stat.AddItem("auth_successfull", "Successfully auth request count")
+	//
 	server := ConnectionServer{
 		statusAcceptedObject: statusAcceptedObject{
 			statusChangeLock: new(sync.RWMutex)},

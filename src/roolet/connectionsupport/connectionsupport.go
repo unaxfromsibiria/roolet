@@ -216,7 +216,7 @@ func (manager *ConnectionDataManager) NewConnection() *ConnectionData {
 	total := (*manager).total + 1
 	(*manager).index = value
 	(*manager).total = total
-	prefix := manager.rand.GetShotPrefix()
+	prefix := manager.rand.GetShotHexPrefix()
 	var index int
 	if total <= ResourcesGroupSize {
 		index = 1

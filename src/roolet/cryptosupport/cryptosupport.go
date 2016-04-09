@@ -1,7 +1,9 @@
 package cryptosupport
 
 import (
+	"crypto/rsa"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"roolet/helpers"
@@ -15,6 +17,24 @@ import (
 // $openssl genpkey -outform PEM -algorithm RSA -out key.priv -pkeyopt rsa_keygen_bits:1024
 // and public key extract from it
 // $openssl rsa -in key.priv -out key.pub -pubout
+
+// simple ckeck token
+func Check(key *rsa.PublicKey, token string) error {
+	parts := strings.Split(token, ".")
+	if len(parts) == 3 {
+		if sigDta, err := base64.StdEncoding.DecodeString(parts[2]); err == nil {
+			sig := string(sigDta)
+			if err := jwt.SigningMethodRS256.Verify(strings.Join(parts[0:2], "."), sig, key); err != nil {
+				return err
+			}
+		} else {
+			return errors.New(fmt.Sprintf("Base64 decode problem: %s with: '%s'.", err, parts[2]))
+		}
+	} else {
+		return errors.New("Write a full token as tools data (3 parts).")
+	}
+	return nil
+}
 
 // Test create token from command line.
 func JwtCreate(data string, option *options.SysOption) {
