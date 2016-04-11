@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"roolet/coreprocessing"
 	"roolet/cryptosupport"
+	"roolet/connectionsupport"
 	"roolet/options"
 	"roolet/rllogger"
 	"roolet/transport"
@@ -51,6 +52,12 @@ func newAuthData(params transport.MethodParams) (*AuthData, error) {
 	}
 }
 
+type ClientInfo struct {
+	Group int
+	Methods []string
+	Workers int
+}
+
 // return date size in result
 func ping(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
 	var insType int
@@ -75,6 +82,7 @@ func auth(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction
 	//  - data: "<base64 token string, use JWT protocol (random data inside)>"
 	// getting (search on option.KeyDir) client public key by name (in command params)
 	handler.Stat.AddOneMsg("auth_request")
+	changes := connectionsupport.StateChanges{}
 	var result *coreprocessing.CoreInstruction
 	var resultErr error
 	var errCode int
@@ -95,14 +103,49 @@ func auth(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction
 	var answer *transport.Answer
 	var insType int
 	if errCode > 0 {
+		changes.Auth = false
 		answer = inIns.MakeErrAnswer(errCode, fmt.Sprint(resultErr))
 		insType = coreprocessing.TypeInstructionProblem
 		rllogger.Outputf(rllogger.LogWarn, "Failed auth from %s with error: %s", inIns.Cid, resultErr)
 	} else {
+		changes.Auth = true
 		handler.Stat.AddOneMsg("auth_successfull")
 		answer = inIns.MakeOkAnswer("{\"auth\":true}")
 		insType = coreprocessing.TypeInstructionPing
 		rllogger.Outputf(rllogger.LogDebug, "Successfull auth from %s", inIns.Cid)
+	}
+	result = coreprocessing.NewCoreInstruction(insType)
+	result.SetAnswer(answer)
+	result.StateChanges = &changes
+	return result
+}
+
+func registration(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
+	insType := coreprocessing.TypeInstructionSkip
+	var answer *transport.Answer
+	var result *coreprocessing.CoreInstruction
+	var errStr string
+	errCode := 0
+	if cmd, exists := inIns.GetCommand(); exists {
+		info := ClientInfo{}
+		if loadErr := json.Unmarshal([]byte((*cmd).Params.Json), &info); loadErr == nil {
+			if handler.SatateCheker.IsAuth(inIns.Cid) {
+				// TODO:
+			} else {
+				errCode = transport.ErrorCodeAccessDenied
+				errStr = "Access denied."
+			}
+		} else {
+			errCode = transport.ErrorCodeMethodParamsFormatWrong
+			errStr = fmt.Sprint(loadErr)
+		}
+	} else {
+		errCode = transport.ErrorCodeCommandFormatWrong
+		errStr = "Command is empty."
+	}
+	if errCode > 0 {
+		insType = coreprocessing.TypeInstructionProblem
+		answer = inIns.MakeErrAnswer(errCode, errStr)
 	}
 	result = coreprocessing.NewCoreInstruction(insType)
 	result.SetAnswer(answer)
@@ -112,4 +155,5 @@ func auth(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction
 func Setup() {
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionPing, ping)
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionAuth, auth)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionReg, registration)
 }

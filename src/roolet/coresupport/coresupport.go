@@ -136,11 +136,12 @@ func NewCoreWorkerManager(option options.SysOption, stat *statistic.Statistic) *
 	return &manager
 }
 
-func (mng *CoreWorkerManager) Start() {
+func (mng *CoreWorkerManager) Start(handlerSetuper coreprocessing.HandlerConfigurator) {
 	manager := *mng
 	count := manager.options.Workers
 	for index := 0; index < count; index++ {
 		handler := coreprocessing.NewHandler(index, manager.options, manager.statistic)
+		handlerSetuper.WorkerHandlerConfigure(handler)
 		go worker(
 			index+1,
 			&(manager.instructionsChannel),

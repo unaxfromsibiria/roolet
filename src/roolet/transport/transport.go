@@ -8,10 +8,11 @@ import (
 const (
 	JSONRpcVersion = "2.0"
 	// errors
-	ErrorCodeInternalProblem = 1
-	ErrorCodeCommandFormatWrong = 2
+	ErrorCodeInternalProblem         = 1
+	ErrorCodeCommandFormatWrong      = 2
 	ErrorCodeMethodParamsFormatWrong = 3
-	ErrorCodeMethodAuthFailed = 4
+	ErrorCodeMethodAuthFailed        = 4
+	ErrorCodeAccessDenied            = 5
 )
 
 // helper
@@ -41,8 +42,8 @@ type Command struct {
 	Jsonrpc string `json:"jsonrpc"`
 	Id      int    `json:"id"`
 	// used
-	Method string `json:"method"`
-	Params MethodParams
+	Method string       `json:"method"`
+	Params MethodParams `json:"params"`
 }
 
 type ErrorDescription struct {
@@ -124,6 +125,17 @@ func (cmd *Command) Dump() (*string, error) {
 		result = &data
 	}
 	return result, resultErr
+}
+
+func (cmd *Command) DataDump() *[]byte {
+	(*cmd).Jsonrpc = JSONRpcVersion
+	var result *[]byte
+	if data, err := json.Marshal(cmd); err == nil {
+		result = &data
+	} else {
+		result = nil
+	}
+	return result
 }
 
 func (cmd *Command) Load(data *[]byte) error {

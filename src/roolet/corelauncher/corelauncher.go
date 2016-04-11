@@ -21,7 +21,7 @@ func Launch(option *options.SysOption) {
 	stat := statistic.NewStatistic(*option)
 	manager := coresupport.NewCoreWorkerManager(*option, stat)
 	server := connectionserver.NewServer(*option, stat)
-	manager.Start()
+	manager.Start(server)
 	server.Start(manager)
 	// wait
 	for !mustExit {

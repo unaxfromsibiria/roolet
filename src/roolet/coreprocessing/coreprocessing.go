@@ -13,19 +13,21 @@ const (
 	TypeInstructionProblem = 1
 	TypeInstructionExit    = 10
 	// turnoff it after
-	TypeInstructionPing = 20
-	TypeInstructionAuth = 30
-	TypeInstructionPong = 40
+	TypeInstructionPing   = 20
+	TypeInstructionAuth   = 30
+	TypeInstructionPong   = 40
 	TypeInstructionStatus = 50
+	TypeInstructionReg    = 55
 	// method of client
 	TypeInstructionExternal = 100
 )
 
 type CoreInstruction struct {
-	Type   int
-	Cid    string
-	cmd    *transport.Command
-	answer *transport.Answer
+	Type         int
+	Cid          string
+	StateChanges *connectionsupport.StateChanges
+	cmd          *transport.Command
+	answer       *transport.Answer
 }
 
 func NewExitCoreInstruction() *CoreInstruction {
@@ -86,10 +88,11 @@ type MethodInstructionDict struct {
 var onceMethodInstructionDict MethodInstructionDict = MethodInstructionDict{
 	AsyncSafeObject: *(connectionsupport.NewAsyncSafeObject()),
 	content: map[string]int{
-		"auth": TypeInstructionAuth,
-		"ping": TypeInstructionPing,
-		"quit": TypeInstructionExit,
-		"exit": TypeInstructionExit}}
+		"auth":         TypeInstructionAuth,
+		"registration": TypeInstructionReg,
+		"ping":         TypeInstructionPing,
+		"quit":         TypeInstructionExit,
+		"exit":         TypeInstructionExit}}
 
 func NewMethodInstructionDict() *MethodInstructionDict {
 	// use like singleton
@@ -153,10 +156,15 @@ func SetupMethod(insType int, method InstructionHandlerMethod) {
 }
 
 type Handler struct {
-	Option  options.SysOption
-	Stat    statistic.StatisticUpdater
-	worker  int
-	methods *map[int]InstructionHandlerMethod
+	SatateCheker connectionsupport.ConnectionStateChecker
+	Option       options.SysOption
+	Stat         statistic.StatisticUpdater
+	worker       int
+	methods      *map[int]InstructionHandlerMethod
+}
+
+type HandlerConfigurator interface {
+	WorkerHandlerConfigure(handler *Handler)
 }
 
 func NewHandler(
@@ -165,10 +173,11 @@ func NewHandler(
 	stat statistic.StatisticUpdater) *Handler {
 	//
 	handler := Handler{
-		worker:  workerIndex,
 		Option:  option,
-		methods: &methods,
-		Stat:    stat}
+		Stat:    stat,
+		worker:  workerIndex,
+		methods: &methods}
+
 	return &handler
 }
 
