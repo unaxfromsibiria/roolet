@@ -7,6 +7,7 @@ Main features:
 - JSON-RPC over TCP connection protocol:
 
 	roolet-server <=> application client
+
 	roolet-server <=> application client <=> RPC-server workers
 
 - JSON-RPC over RFC6455 protocol:
