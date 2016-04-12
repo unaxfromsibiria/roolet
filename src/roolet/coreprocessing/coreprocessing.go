@@ -80,6 +80,63 @@ func (instruction *CoreInstruction) SetAnswer(answer *transport.Answer) {
 	(*instruction).answer = answer
 }
 
+type CidSet struct {
+	// wtf! where native set? >_<
+	set map[string]struct{}
+}
+
+func NewCidSet() *CidSet {
+	result := CidSet{set: make(map[string]struct{})}
+	return &result
+}
+
+func (set *CidSet) Add(cid string) {
+	(*set).set[cid] = struct{}{}
+}
+
+func (set *CidSet) Remove(cid string) {
+	if _, exists := (*set).set[cid]; exists {
+		delete((*set).set, cid)
+	}
+}
+
+func (set *CidSet) Exists(cid string) bool {
+	if _, exists := (*set).set[cid]; exists {
+		return true
+	}
+	return false
+}
+
+// server manager
+type RpcServerManager struct {
+	connectionsupport.AsyncSafeObject
+	methods map[string]*CidSet
+}
+
+func (manager *RpcServerManager) Append(cid string, methods *[]string) {
+	manager.Lock(true)
+	defer manager.Unlock(true)
+	for _, methodName := range *methods {
+		if setPtr, exists := (*manager).methods[methodName]; exists {
+			setPtr.Add(cid)
+		} else {
+			cell := NewCidSet()
+			cell.Add(cid)
+			(*manager).methods[methodName] = cell
+		}
+	}
+}
+
+var onceRpcServerManager = RpcServerManager{
+	AsyncSafeObject: *(connectionsupport.NewAsyncSafeObject()),
+	methods:         make(map[string]*CidSet)}
+
+func NewRpcServerManager() *RpcServerManager {
+	// use as singltone
+	return &onceRpcServerManager
+}
+
+// main instruction commnad router
 type MethodInstructionDict struct {
 	connectionsupport.AsyncSafeObject
 	content map[string]int
@@ -156,11 +213,11 @@ func SetupMethod(insType int, method InstructionHandlerMethod) {
 }
 
 type Handler struct {
-	SatateCheker connectionsupport.ConnectionStateChecker
-	Option       options.SysOption
-	Stat         statistic.StatisticUpdater
-	worker       int
-	methods      *map[int]InstructionHandlerMethod
+	StateCheker connectionsupport.ConnectionStateChecker
+	Option      options.SysOption
+	Stat        statistic.StatisticUpdater
+	worker      int
+	methods     *map[int]InstructionHandlerMethod
 }
 
 type HandlerConfigurator interface {

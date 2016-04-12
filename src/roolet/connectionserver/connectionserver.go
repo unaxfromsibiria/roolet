@@ -177,7 +177,7 @@ func (server *ConnectionServer) connectionReadProcessing(
 }
 
 func (server *ConnectionServer) WorkerHandlerConfigure(handler *coreprocessing.Handler) {
-	(*handler).SatateCheker = server.connectionDataManager
+	(*handler).StateCheker = server.connectionDataManager
 }
 
 func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManager) {

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"roolet/connectionsupport"
 	"roolet/coreprocessing"
 	"roolet/cryptosupport"
-	"roolet/connectionsupport"
 	"roolet/options"
 	"roolet/rllogger"
 	"roolet/transport"
@@ -53,9 +53,8 @@ func newAuthData(params transport.MethodParams) (*AuthData, error) {
 }
 
 type ClientInfo struct {
-	Group int
+	Group   int
 	Methods []string
-	Workers int
 }
 
 // return date size in result
@@ -129,8 +128,31 @@ func registration(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 	if cmd, exists := inIns.GetCommand(); exists {
 		info := ClientInfo{}
 		if loadErr := json.Unmarshal([]byte((*cmd).Params.Json), &info); loadErr == nil {
-			if handler.SatateCheker.IsAuth(inIns.Cid) {
-				// TODO:
+			if handler.StateCheker.IsAuth(inIns.Cid) {
+				switch info.Group {
+				case connectionsupport.GroupConnectionClient:
+					{
+						// TODO
+					}
+				case connectionsupport.GroupConnectionServer:
+					{
+						dict := coreprocessing.NewMethodInstructionDict()
+						dict.RegisterClientMethods(info.Methods...)
+						cidMethods := coreprocessing.NewRpcServerManager()
+						cidMethods.Append(inIns.Cid, &(info.Methods))
+					}
+				case connectionsupport.GroupConnectionWsClient:
+					{
+						// denied
+						errCode = transport.ErrorCodeAccessDenied
+						errStr = "Web-socket client don't accepted on simple TCP socket."
+					}
+				default:
+					{
+						errCode = transport.ErrorCodeCommandFormatWrong
+						errStr = "Unknown group, see the protocol specification."
+					}
+				}
 			} else {
 				errCode = transport.ErrorCodeAccessDenied
 				errStr = "Access denied."
