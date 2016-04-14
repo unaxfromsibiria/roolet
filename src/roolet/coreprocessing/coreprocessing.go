@@ -11,6 +11,7 @@ import (
 const (
 	TypeInstructionSkip    = 0
 	TypeInstructionProblem = 1
+	TypeInstructionOk      = 2
 	TypeInstructionExit    = 10
 	// turnoff it after
 	TypeInstructionPing   = 20
@@ -147,6 +148,7 @@ var onceMethodInstructionDict MethodInstructionDict = MethodInstructionDict{
 	content: map[string]int{
 		"auth":         TypeInstructionAuth,
 		"registration": TypeInstructionReg,
+		"statusupdate": TypeInstructionStatus,
 		"ping":         TypeInstructionPing,
 		"quit":         TypeInstructionExit,
 		"exit":         TypeInstructionExit}}
@@ -182,15 +184,19 @@ func (dict *MethodInstructionDict) Exists(method string) bool {
 }
 
 // rpc methods name must put here
-func (dict *MethodInstructionDict) RegisterClientMethods(methods ...string) {
+func (dict *MethodInstructionDict) RegisterClientMethods(methods ...string) int {
 	dict.check()
+	result := int(len(methods))
 	for _, method := range methods {
 		if len(method) > 0 && !dict.Exists(method) {
 			dict.Lock(true)
 			(*dict).content[method] = TypeInstructionExternal
 			dict.Unlock(true)
+		} else {
+			result--
 		}
 	}
+	return result
 }
 
 // common methods

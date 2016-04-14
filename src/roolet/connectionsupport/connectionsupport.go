@@ -17,9 +17,18 @@ const (
 	MaxClientCount = 100000
 	GroupCount     = MaxClientCount / ResourcesGroupSize
 	// clients group
-	GroupConnectionServer = 1
-	GroupConnectionClient = 2
+	GroupConnectionServer   = 1
+	GroupConnectionClient   = 2
 	GroupConnectionWsClient = 3
+	// client status
+	ClientStatusActive = 1
+	ClientStatusBusy   = 2
+	// state change types
+	StateChangesTypeSkip   = 0
+	StateChangesTypeAll    = 1
+	StateChangesTypeAuth   = 2
+	StateChangesTypeGroup  = 3
+	StateChangesTypeStatus = 4
 )
 
 type AsyncSafeObject struct {
@@ -90,10 +99,10 @@ func (connData *ConnectionData) GetResourceIndex() int {
 }
 
 type ClientStateData struct {
-	Busy     bool
 	TempData []byte
-	auth bool
-	group int
+	auth     bool
+	group    int
+	status   uint16
 }
 
 func newClientStateData() *ClientStateData {
@@ -102,7 +111,10 @@ func newClientStateData() *ClientStateData {
 }
 
 func (stateData *ClientStateData) clear() {
-	(*stateData).Busy = false
+	(*stateData).status = ClientStatusActive
+	(*stateData).auth = false
+	(*stateData).group = 0
+	(*stateData).auth = false
 }
 
 // update state way
@@ -112,13 +124,23 @@ type ClientDataUpdater interface {
 
 type StateChanges struct {
 	// accepted field for changes in base state
-	Auth bool
+	ChangeType            int
+	Auth                  bool
 	ConnectionClientGroup int
+	Status                uint16
 }
 
 func (changes StateChanges) update(state *ClientStateData) {
-	(*state).auth = changes.Auth
-	(*state).group = changes.ConnectionClientGroup
+	t := changes.ChangeType
+	if t == StateChangesTypeAll || t == StateChangesTypeAuth {
+		(*state).auth = changes.Auth
+	}
+	if t == StateChangesTypeAll || t == StateChangesTypeGroup {
+		(*state).group = changes.ConnectionClientGroup
+	}
+	if t == StateChangesTypeAll || t == StateChangesTypeStatus {
+		(*state).status = changes.Status
+	}
 }
 
 // part of client data map
@@ -153,7 +175,7 @@ func (cell *ConnectionDataStorageCell) IsBusy(id int64) bool {
 	cell.Lock(false)
 	defer cell.Unlock(false)
 	if rec, exists := (*cell).data[id]; exists {
-		return (*rec).Busy
+		return (*rec).status == ClientStatusBusy
 	} else {
 		return false
 	}

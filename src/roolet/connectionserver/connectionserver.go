@@ -107,7 +107,9 @@ func connectionWriteProcessing(
 			if msgSize > 0 {
 				stat.SendMsg("outcome_data_size", msgSize)
 				// update state data
-				dataManager.UpdateState(newInstruction.Cid, newInstruction.StateChanges)
+				if newInstruction.StateChanges != nil {
+					dataManager.UpdateState(newInstruction.Cid, newInstruction.StateChanges)
+				}
 			} else {
 				rllogger.Outputf(rllogger.LogWarn, "Empty answer to %s?", label)
 			}
@@ -177,7 +179,7 @@ func (server *ConnectionServer) connectionReadProcessing(
 }
 
 func (server *ConnectionServer) WorkerHandlerConfigure(handler *coreprocessing.Handler) {
-	(*handler).StateCheker = server.connectionDataManager
+	(*handler).StateCheker = (*server).connectionDataManager
 }
 
 func (server *ConnectionServer) Start(workerManager *coresupport.CoreWorkerManager) {

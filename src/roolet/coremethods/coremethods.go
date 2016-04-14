@@ -10,6 +10,7 @@ import (
 	"roolet/options"
 	"roolet/rllogger"
 	"roolet/transport"
+	"strconv"
 )
 
 type AuthData struct {
@@ -81,7 +82,8 @@ func auth(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction
 	//  - data: "<base64 token string, use JWT protocol (random data inside)>"
 	// getting (search on option.KeyDir) client public key by name (in command params)
 	handler.Stat.AddOneMsg("auth_request")
-	changes := connectionsupport.StateChanges{}
+	changes := connectionsupport.StateChanges{
+		ChangeType: connectionsupport.StateChangesTypeAuth}
 	var result *coreprocessing.CoreInstruction
 	var resultErr error
 	var errCode int
@@ -110,7 +112,7 @@ func auth(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction
 		changes.Auth = true
 		handler.Stat.AddOneMsg("auth_successfull")
 		answer = inIns.MakeOkAnswer("{\"auth\":true}")
-		insType = coreprocessing.TypeInstructionPing
+		insType = coreprocessing.TypeInstructionOk
 		rllogger.Outputf(rllogger.LogDebug, "Successfull auth from %s", inIns.Cid)
 	}
 	result = coreprocessing.NewCoreInstruction(insType)
@@ -123,23 +125,34 @@ func registration(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 	insType := coreprocessing.TypeInstructionSkip
 	var answer *transport.Answer
 	var result *coreprocessing.CoreInstruction
+	var resultChanges *connectionsupport.StateChanges
 	var errStr string
 	errCode := 0
 	if cmd, exists := inIns.GetCommand(); exists {
 		info := ClientInfo{}
 		if loadErr := json.Unmarshal([]byte((*cmd).Params.Json), &info); loadErr == nil {
-			if handler.StateCheker.IsAuth(inIns.Cid) {
+			if (*handler).StateCheker.IsAuth(inIns.Cid) {
 				switch info.Group {
 				case connectionsupport.GroupConnectionClient:
 					{
-						// TODO
+						changes := connectionsupport.StateChanges{
+							ChangeType:            connectionsupport.StateChangesTypeGroup,
+							ConnectionClientGroup: connectionsupport.GroupConnectionClient}
+						resultChanges = &changes
+						answer = inIns.MakeOkAnswer("{\"ok\": true}")
 					}
 				case connectionsupport.GroupConnectionServer:
 					{
 						dict := coreprocessing.NewMethodInstructionDict()
-						dict.RegisterClientMethods(info.Methods...)
+						methodsCount := dict.RegisterClientMethods(info.Methods...)
 						cidMethods := coreprocessing.NewRpcServerManager()
 						cidMethods.Append(inIns.Cid, &(info.Methods))
+						answer = inIns.MakeOkAnswer(
+							fmt.Sprintf("{\"methods_count\": %d, \"ok\": true}", methodsCount))
+						changes := connectionsupport.StateChanges{
+							ChangeType:            connectionsupport.StateChangesTypeGroup,
+							ConnectionClientGroup: connectionsupport.GroupConnectionServer}
+						resultChanges = &changes
 					}
 				case connectionsupport.GroupConnectionWsClient:
 					{
@@ -168,9 +181,47 @@ func registration(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 	if errCode > 0 {
 		insType = coreprocessing.TypeInstructionProblem
 		answer = inIns.MakeErrAnswer(errCode, errStr)
+	} else {
+		insType = coreprocessing.TypeInstructionOk
 	}
 	result = coreprocessing.NewCoreInstruction(insType)
 	result.SetAnswer(answer)
+	result.StateChanges = resultChanges
+	return result
+}
+
+func updateStatus(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
+	insType := coreprocessing.TypeInstructionSkip
+	var answer *transport.Answer
+	var result *coreprocessing.CoreInstruction
+	var resultChanges *connectionsupport.StateChanges
+	var errStr string
+	errCode := 0
+	if cmd, exists := inIns.GetCommand(); exists {
+		// check params.data is number type
+		if newStatus, err := strconv.ParseUint(cmd.Params.Data, 10, 16); err == nil {
+			changes := connectionsupport.StateChanges{
+				ChangeType: connectionsupport.StateChangesTypeStatus,
+				Status:     uint16(newStatus)}
+			resultChanges = &changes
+			answer = inIns.MakeOkAnswer(
+				fmt.Sprintf("{\"ok\": true, \"status\": %d}", newStatus))
+			insType = coreprocessing.TypeInstructionOk
+		} else {
+			errCode = transport.ErrorCodeMethodParamsFormatWrong
+			errStr = "Status has unexpected type."
+		}
+	} else {
+		errCode = transport.ErrorCodeCommandFormatWrong
+		errStr = "Command is empty."
+	}
+	if errCode > 0 {
+		insType = coreprocessing.TypeInstructionProblem
+		answer = inIns.MakeErrAnswer(errCode, errStr)
+	}
+	result = coreprocessing.NewCoreInstruction(insType)
+	result.SetAnswer(answer)
+	result.StateChanges = resultChanges
 	return result
 }
 
@@ -178,4 +229,5 @@ func Setup() {
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionPing, ping)
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionAuth, auth)
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionReg, registration)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionStatus, updateStatus)
 }
