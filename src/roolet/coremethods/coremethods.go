@@ -59,7 +59,7 @@ type ClientInfo struct {
 }
 
 // return date size in result
-func ping(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
+func ProcPing(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
 	var insType int
 	var result string
 	if cmd, exists := inIns.GetCommand(); exists {
@@ -76,7 +76,7 @@ func ping(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction
 }
 
 // check token by client public key
-func auth(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
+func ProcAuth(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
 	// client sends in params:
 	//  - json: {"key": "<key name>"}
 	//  - data: "<base64 token string, use JWT protocol (random data inside)>"
@@ -121,7 +121,7 @@ func auth(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction
 	return result
 }
 
-func registration(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
+func ProcRegistration(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
 	insType := coreprocessing.TypeInstructionSkip
 	var answer *transport.Answer
 	var result *coreprocessing.CoreInstruction
@@ -190,7 +190,7 @@ func registration(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 	return result
 }
 
-func updateStatus(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
+func ProcUpdateStatus(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
 	insType := coreprocessing.TypeInstructionSkip
 	var answer *transport.Answer
 	var result *coreprocessing.CoreInstruction
@@ -225,9 +225,17 @@ func updateStatus(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 	return result
 }
 
+// main method for client routing to server methods
+func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
+	var result *coreprocessing.CoreInstruction
+	// TODO:
+	return result
+}
+
 func Setup() {
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionPing, ping)
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionAuth, auth)
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionReg, registration)
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionStatus, updateStatus)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionPing, ProcPing)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionAuth, ProcAuth)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionReg, ProcRegistration)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionStatus, ProcUpdateStatus)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionExternal, ProcRouteRpc)
 }

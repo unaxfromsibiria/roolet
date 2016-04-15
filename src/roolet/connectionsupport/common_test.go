@@ -132,6 +132,10 @@ func TestCidConvertation(t *testing.T) {
 	}
 }
 
+type testClientDataUpdate struct {
+	busy bool
+}
+
 func TestSimpleClientStateSyncUpdate(t *testing.T) {
 	option := options.SysOption{}
 	manager := connectionsupport.NewConnectionDataManager(option)
@@ -139,17 +143,21 @@ func TestSimpleClientStateSyncUpdate(t *testing.T) {
 	for i := 0; i < 2356; i++ {
 		manager.NewConnection()
 	}
+	changes := connectionsupport.StateChanges{ChangeType: connectionsupport.StateChangesTypeAll}
 	connData := manager.NewConnection()
 	t.Logf("New client: %s", connData.Cid)
-	manager.SetClientBusy(connData.Cid, true)
+	changes.Status = connectionsupport.ClientStatusBusy
+	manager.UpdateState(connData.Cid, changes)
 	if !manager.ClientBusy(connData.Cid) {
 		t.Error("Broken method 1.")
 	}
-	manager.SetClientBusy(connData.Cid, false)
+	changes.Status = connectionsupport.ClientStatusActive
+	manager.UpdateState(connData.Cid, changes)
 	if manager.ClientBusy(connData.Cid) {
 		t.Error("Broken method 2.")
 	}
-	manager.SetClientBusy(connData.Cid, true)
+	changes.Status = connectionsupport.ClientStatusBusy
+	manager.UpdateState(connData.Cid, changes)
 	if !manager.ClientBusy(connData.Cid) {
 		t.Error("Broken method 3.")
 	}
@@ -170,12 +178,20 @@ func TestNormalDistributionOfMissesAndHits(t *testing.T) {
 		Misses int
 		Done   bool
 	}
+	changes := connectionsupport.StateChanges{ChangeType: connectionsupport.StateChangesTypeAll}
+
 	worker := func(done *chan res, m *connectionsupport.ConnectionDataManager, cid string) {
 		r := res{}
 		for i := 0; i < operCount; i++ {
-			value := rand.Intn(10) > 5
-			m.SetClientBusy(cid, value)
-			if value == m.ClientBusy(connData.Cid) {
+			isActive := rand.Intn(10) > 5
+			if isActive {
+				changes.Status = connectionsupport.ClientStatusActive
+			} else {
+				changes.Status = connectionsupport.ClientStatusBusy
+			}
+
+			m.UpdateState(cid, changes)
+			if isActive == m.ClientBusy(connData.Cid) {
 				r.Hits++
 			} else {
 				r.Misses++

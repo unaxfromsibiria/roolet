@@ -67,6 +67,7 @@ func connectionWriteProcessing(
 	wait := true
 	msgSize := 0
 	var newInstruction coreprocessing.CoreInstruction
+	var statGroupName string
 	for wait {
 		newInstruction = <-*backChannel
 		if newInstruction.IsEmpty() {
@@ -108,6 +109,19 @@ func connectionWriteProcessing(
 				stat.SendMsg("outcome_data_size", msgSize)
 				// update state data
 				if newInstruction.StateChanges != nil {
+					// so simple.. without some visitor for statistic
+					if newInstruction.StateChanges.ChangeType == connectionsupport.StateChangesTypeGroup {
+						switch newInstruction.StateChanges.ConnectionClientGroup {
+						case connectionsupport.GroupConnectionClient:
+							statGroupName = "count_connection_client"
+						case connectionsupport.GroupConnectionServer:
+							statGroupName = "count_connection_server"
+						case connectionsupport.GroupConnectionWsClient:
+							statGroupName = "count_connection_web"
+						}
+						stat.AddOneMsg(statGroupName)
+					}
+					// update data in manager
 					dataManager.UpdateState(newInstruction.Cid, newInstruction.StateChanges)
 				}
 			} else {
@@ -124,6 +138,7 @@ func connectionWriteProcessing(
 			}
 		}
 	}
+	stat.DelOneMsg(statGroupName)
 	close(*backChannel)
 }
 
@@ -231,6 +246,9 @@ func NewServer(option options.SysOption, stat *statistic.Statistic) *ConnectionS
 	stat.AddItem("lost_connection_count", "Lost connection count")
 	stat.AddItem("auth_request", "Request for auth count")
 	stat.AddItem("auth_successfull", "Successfully auth request count")
+	stat.AddItem("count_connection_client", "Connection count (service clients)")
+	stat.AddItem("count_connection_server", "Connection count (servers)")
+	stat.AddItem("count_connection_web", "Connection count (web-socket)")
 	//
 	server := ConnectionServer{
 		statusAcceptedObject: statusAcceptedObject{
