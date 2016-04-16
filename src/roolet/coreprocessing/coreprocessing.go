@@ -77,6 +77,10 @@ func (instruction *CoreInstruction) GetAnswer() (*transport.Answer, bool) {
 	return (*instruction).answer, (*instruction).answer != nil
 }
 
+func (instruction *CoreInstruction) SetCommand(cmd *transport.Command) {
+	(*instruction).cmd = cmd
+}
+
 func (instruction *CoreInstruction) SetAnswer(answer *transport.Answer) {
 	(*instruction).answer = answer
 }
