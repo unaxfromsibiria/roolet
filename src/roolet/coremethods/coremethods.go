@@ -162,7 +162,7 @@ func ProcRegistration(handler *coreprocessing.Handler, inIns *coreprocessing.Cor
 					}
 				default:
 					{
-						errCode = transport.ErrorCodeCommandFormatWrong
+						errCode = transport.ErrorCodeUnexpectedValue
 						errStr = "Unknown group, see the protocol specification."
 					}
 				}

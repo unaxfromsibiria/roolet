@@ -13,6 +13,7 @@ const (
 	ErrorCodeMethodParamsFormatWrong = 3
 	ErrorCodeMethodAuthFailed        = 4
 	ErrorCodeAccessDenied            = 5
+	ErrorCodeUnexpectedValue         = 6
 )
 
 // helper
@@ -38,6 +39,10 @@ type MethodParams struct {
 	Json string `json:"json"`
 }
 
+func (parmas MethodParams) String() string {
+	return fmt.Sprintf("cid: %s data: %s json: %s", parmas.Cid, parmas.Data, parmas.Json)
+}
+
 type Command struct {
 	Jsonrpc string `json:"jsonrpc"`
 	Id      int    `json:"id"`
@@ -49,6 +54,10 @@ type Command struct {
 type ErrorDescription struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+}
+
+func (errorDes ErrorDescription) String() string {
+	return fmt.Sprintf("Error: %d - %s", errorDes.Code, errorDes.Message)
 }
 
 type baseAnswer struct {
