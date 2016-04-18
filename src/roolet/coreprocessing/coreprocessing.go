@@ -99,6 +99,10 @@ func (set *CidSet) Add(cid string) {
 	(*set).set[cid] = struct{}{}
 }
 
+func (set *CidSet) Size() int {
+	return len((*set).set)
+}
+
 func (set *CidSet) Remove(cid string) {
 	if _, exists := (*set).set[cid]; exists {
 		delete((*set).set, cid)
@@ -130,6 +134,24 @@ func (manager *RpcServerManager) Append(cid string, methods *[]string) {
 			(*manager).methods[methodName] = cell
 		}
 	}
+}
+
+func (manager *RpcServerManager) GetCidVariants(method string) []string {
+	manager.Lock(false)
+	defer manager.Unlock(false)
+	var result []string
+	if set, exists := (*manager).methods[method]; exists {
+		size := set.Size()
+		if size > 0 {
+			result = make([]string, size)
+			index := 0
+			for cid, _ := range set.set {
+				result[index] = cid
+				index++
+			}	
+		}
+	}
+	return result
 }
 
 var onceRpcServerManager = RpcServerManager{

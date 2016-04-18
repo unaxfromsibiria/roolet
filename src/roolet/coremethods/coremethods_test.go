@@ -194,7 +194,7 @@ func TestRegistratioAddGroupClient(t *testing.T) {
 	inIns := coreprocessing.NewCoreInstruction(coreprocessing.TypeInstructionReg)
 	cmd := transport.NewCommand(0, "27d90e5e-0000000000000011-1", "registration", "")
 	(*cmd).Params.Json = fmt.Sprintf(
-		"{\"methods\": [\"none\"], \"group\": %d}", connectionsupport.GroupConnectionClient)
+		"{\"group\": %d}", connectionsupport.GroupConnectionClient)
 	inIns.SetCommand(cmd)
 	outIns := coremethods.ProcRegistration(handler, inIns)
 	if answer, exists := outIns.GetAnswer(); exists {
@@ -213,13 +213,15 @@ func TestRegistratioAddGroupServer(t *testing.T) {
 	option := options.SysOption{
 		Statistic: false}
 	stat := statistic.NewStatistic(option)
+	methodName := "test_test"
+	cid := "27d90e5e-0000000000000011-1"
 	handler := coreprocessing.NewHandler(1, option, stat)
 	cheker := forTestConnectionStateCheck{Auth: true}
 	handler.StateCheker = &cheker
 	inIns := coreprocessing.NewCoreInstruction(coreprocessing.TypeInstructionReg)
-	cmd := transport.NewCommand(0, "27d90e5e-0000000000000011-1", "registration", "")
+	cmd := transport.NewCommand(0, cid, "registration", "")
 	(*cmd).Params.Json = fmt.Sprintf(
-		"{\"methods\": [\"none\"], \"group\": %d}", connectionsupport.GroupConnectionServer)
+		"{\"methods\": [\"%s\"], \"group\": %d}", methodName, connectionsupport.GroupConnectionServer)
 	inIns.SetCommand(cmd)
 	outIns := coremethods.ProcRegistration(handler, inIns)
 	if answer, exists := outIns.GetAnswer(); exists {
@@ -227,7 +229,35 @@ func TestRegistratioAddGroupServer(t *testing.T) {
 		if err > 0 {
 			t.Error("Answer with problem, %s", (*answer).Error)
 		} else {
-			t.Log("TODO")
+			stCh := (*outIns).StateChanges
+			if stCh != nil {
+				if (*stCh).ChangeType == connectionsupport.StateChangesTypeGroup {
+					if (*stCh).ConnectionClientGroup == connectionsupport.GroupConnectionServer {
+						cidMethods := coreprocessing.NewRpcServerManager()
+						cidList := cidMethods.GetCidVariants(methodName)
+						if len(cidList) > 0 {
+							exists := false
+							for _, variant := range(cidList) {
+								if variant == cid {
+									exists = true
+								}
+							}
+							if !exists {
+								t.Errorf("Not found cid '%s' for method '%s'.", cid, methodName)
+							}
+						} else {
+							t.Errorf("New cid '%s' lost for method '%s'.", cid, methodName)
+						}
+					} else {
+						t.Errorf("Incorrect connection group %s in changes.", (*stCh).ConnectionClientGroup)
+					}
+				} else {
+					t.Errorf("Type of changes is not a {}", connectionsupport.StateChangesTypeGroup)
+				}
+				
+			} else {
+				t.Error("Changes empty.")
+			}
 		}
 	} else {
 		t.Errorf("Empty answer to %s.", *cmd)
