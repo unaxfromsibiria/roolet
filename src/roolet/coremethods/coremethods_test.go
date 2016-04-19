@@ -188,11 +188,12 @@ func TestRegistratioAddGroupClient(t *testing.T) {
 	option := options.SysOption{
 		Statistic: false}
 	stat := statistic.NewStatistic(option)
+	cid := "27d90e5e-0000000000000012-1"
 	handler := coreprocessing.NewHandler(1, option, stat)
 	cheker := forTestConnectionStateCheck{Auth: true}
 	handler.StateCheker = &cheker
 	inIns := coreprocessing.NewCoreInstruction(coreprocessing.TypeInstructionReg)
-	cmd := transport.NewCommand(0, "27d90e5e-0000000000000011-1", "registration", "")
+	cmd := transport.NewCommand(0, cid, "registration", "")
 	(*cmd).Params.Json = fmt.Sprintf(
 		"{\"group\": %d}", connectionsupport.GroupConnectionClient)
 	inIns.SetCommand(cmd)
@@ -202,7 +203,27 @@ func TestRegistratioAddGroupClient(t *testing.T) {
 		if err > 0 {
 			t.Error("Answer with problem, %s", (*answer).Error)
 		} else {
-			t.Log("TODO")
+			stCh := (*outIns).StateChanges
+			if stCh != nil {
+				if (*stCh).ChangeType == connectionsupport.StateChangesTypeGroup {
+					if (*stCh).ConnectionClientGroup == connectionsupport.GroupConnectionClient {
+						if answer, exists := outIns.GetAnswer(); exists {
+							if (*answer).Result != "{\"ok\": true}" {
+								t.Errorf("Incorrect answer data: %s", (*answer).Result)
+							}
+						} else {
+							t.Error("Answer data is empty.")
+						}
+					} else {
+						t.Errorf("Incorrect connection group %s in changes.", (*stCh).ConnectionClientGroup)
+					}
+				} else {
+					t.Errorf("Type of changes is not a {}", connectionsupport.StateChangesTypeGroup)
+				}
+				
+			} else {
+				t.Error("Changes empty.")
+			}
 		}
 	} else {
 		t.Errorf("Empty answer to %s.", *cmd)
@@ -238,11 +259,21 @@ func TestRegistratioAddGroupServer(t *testing.T) {
 						if len(cidList) > 0 {
 							exists := false
 							for _, variant := range(cidList) {
+								t.Logf("%s == %s ?", cid, variant)
 								if variant == cid {
 									exists = true
 								}
 							}
-							if !exists {
+							if exists {
+								// check answer
+								if answer, exists := outIns.GetAnswer(); exists {
+									if (*answer).Result != "{\"methods_count\": 1, \"ok\": true}" {
+										t.Errorf("Incorrect answer data: %s", (*answer).Result)
+									}
+								} else {
+									t.Error("Answer data is empty.")
+								}
+							} else {
 								t.Errorf("Not found cid '%s' for method '%s'.", cid, methodName)
 							}
 						} else {

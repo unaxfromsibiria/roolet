@@ -79,6 +79,9 @@ func (instruction *CoreInstruction) GetAnswer() (*transport.Answer, bool) {
 
 func (instruction *CoreInstruction) SetCommand(cmd *transport.Command) {
 	(*instruction).cmd = cmd
+	if len((*instruction).Cid) <= 0 && len((*cmd).Params.Cid) > 0 {
+		(*instruction).Cid = (*cmd).Params.Cid
+	}
 }
 
 func (instruction *CoreInstruction) SetAnswer(answer *transport.Answer) {
