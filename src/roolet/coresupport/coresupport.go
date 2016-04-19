@@ -28,22 +28,20 @@ func worker(
 			}
 		case instruction := <-*instructionsChannel:
 			{
-				newInstruction := handler.Execute(&instruction)
-				// TODO: method for extract 2 int values
-				cid := (*newInstruction).Cid
-				if connectionData, err := connectionsupport.ExtractConnectionData(cid); err == nil {
-					resIndex, id := connectionData.GetResourceIndex(), connectionData.GetId()
-					if !(*outGroups)[resIndex].Send(id, newInstruction) {
+				for _, newInstruction := range(handler.Execute(&instruction)) {
+					cid := (*newInstruction).Cid
+					if resIndex, id, err := connectionsupport.ExtractConnectionDataIndexAndId(cid); err == nil {
+						if !(*outGroups)[resIndex].Send(id, newInstruction) {
+							rllogger.Outputf(
+								rllogger.LogError,
+								"Can't send back instruction for %s worker: %d", cid, index)
+						}
+					} else {
 						rllogger.Outputf(
 							rllogger.LogError,
-							"Can't send back instruction for %s worker: %d", cid, index)
-					}
-				} else {
-					rllogger.Outputf(
-						rllogger.LogError,
-						"CID format error! value: %s worker: %d", cid, index)
+							"CID format error! value: %s worker: %d", cid, index)
+					}					
 				}
-
 			}
 		}
 	}

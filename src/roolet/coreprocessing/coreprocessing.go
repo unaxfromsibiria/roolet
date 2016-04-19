@@ -236,6 +236,7 @@ func exitHandler(handler *Handler, inInstruction *CoreInstruction) *CoreInstruct
 }
 
 type InstructionHandlerMethod func(*Handler, *CoreInstruction) *CoreInstruction
+type InstructionPostHandlerMethod func(*Handler, *CoreInstruction, *CoreInstruction) []*CoreInstruction
 
 var methods map[int]InstructionHandlerMethod = map[int]InstructionHandlerMethod{
 	// TODO: create another one (or more) module for methods
@@ -243,8 +244,13 @@ var methods map[int]InstructionHandlerMethod = map[int]InstructionHandlerMethod{
 	// ..
 	TypeInstructionExit: exitHandler}
 
-func SetupMethod(insType int, method InstructionHandlerMethod) {
+var postMethods map[int]InstructionPostHandlerMethod = map[int]InstructionPostHandlerMethod{}
+
+func SetupMethod(insType int, method InstructionHandlerMethod, postMethod InstructionPostHandlerMethod) {
 	methods[insType] = method
+	if postMethod != nil {
+		postMethods[insType] = postMethod
+	}
 }
 
 type Handler struct {
@@ -277,19 +283,36 @@ func (handler *Handler) Close() {
 	// pass
 }
 
-func (handler *Handler) Execute(ins *CoreInstruction) *CoreInstruction {
-	var outIns *CoreInstruction
+func (handler *Handler) Execute(ins *CoreInstruction) []*CoreInstruction {
+	var result []*CoreInstruction
 	if method, exists := methods[ins.Type]; exists {
-		outIns = method(handler, ins)
+		outIns := method(handler, ins)
+		(*outIns).Cid = (*ins).Cid
+		// post method
+		postMethod, exists := postMethods[ins.Type]
+		externIns := postMethod(handler, ins, outIns)
+		size := 1
+		if exists {
+			size += len(externIns)
+		}
+		result = make([]*CoreInstruction, size)
+		result[0] = outIns
+		if exists {
+			for index, methodPtr := range(externIns) {
+				result[index + 1] = methodPtr
+			}
+		}
 	} else {
 		// send error
-		outIns = NewCoreInstruction(TypeInstructionProblem)
+		outIns := NewCoreInstruction(TypeInstructionProblem)
+		(*outIns).Cid = (*ins).Cid
 		(*outIns).answer = ins.MakeErrAnswer(
 			transport.ErrorCodeInternalProblem, "Not implimented handler for this type!")
 		rllogger.Outputf(
 			rllogger.LogError, "Unknown instruction type '%d' from %s", ins.Type, ins.Cid)
+		result = make([]*CoreInstruction, 1)
+		result[0] = outIns
 	}
 	// copy cid always
-	(*outIns).Cid = (*ins).Cid
-	return outIns
+	return result
 }

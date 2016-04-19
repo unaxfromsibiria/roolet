@@ -227,15 +227,52 @@ func ProcUpdateStatus(handler *coreprocessing.Handler, inIns *coreprocessing.Cor
 
 // main method for client routing to server methods
 func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
-	var result *coreprocessing.CoreInstruction
+	var answer *transport.Answer
+	var errStr string
+	insType := coreprocessing.TypeInstructionSkip
+	errCode := 0
+	// check methods
+	if cmd, exists := inIns.GetCommand(); exists {
+		cidMethods := coreprocessing.NewRpcServerManager()
+		variants := cidMethods.GetCidVariants((*cmd).Method)
+		if len(variants) > 0 {
+			// TODO:
+			// 1 - selected free server
+			// 		
+			// 2 - create task id
+		} else {
+			errCode = transport.ErrorCodeRemouteMethodNotExists
+			errStr = fmt.Sprintf("Method '%s' unregistred.", (*cmd).Method)
+		}
+	} else {
+		errCode = transport.ErrorCodeCommandFormatWrong
+		errStr = "Command is empty."
+	}
+	if errCode > 0 {
+		insType = coreprocessing.TypeInstructionProblem
+		answer = inIns.MakeErrAnswer(errCode, errStr)
+	}
+	result := coreprocessing.NewCoreInstruction(insType)
+	result.SetAnswer(answer)
+	return result
+}
+
+func ProcCallServerMethod(
+	handler *coreprocessing.Handler,
+	inIns *coreprocessing.CoreInstruction,
+	outIns *coreprocessing.CoreInstruction) []*coreprocessing.CoreInstruction {
+	//
+	var result []*coreprocessing.CoreInstruction
 	// TODO:
+	// 1 - make instruction with command for selected server
+	// don't change state, busy status must return remoute server 
 	return result
 }
 
 func Setup() {
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionPing, ProcPing)
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionAuth, ProcAuth)
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionReg, ProcRegistration)
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionStatus, ProcUpdateStatus)
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionExternal, ProcRouteRpc)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionPing, ProcPing, nil)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionAuth, ProcAuth, nil)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionReg, ProcRegistration, nil)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionStatus, ProcUpdateStatus, nil)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionExternal, ProcRouteRpc, ProcCallServerMethod)
 }

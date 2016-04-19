@@ -90,6 +90,22 @@ func ExtractConnectionData(cid string) (*ConnectionData, error) {
 	return newConnectionData(parts[0], id, int(index)), nil
 }
 
+func ExtractConnectionDataIndexAndId(cid string) (int, int64, error) {
+	parts := strings.Split(cid, "-")
+	if len(parts) != 3 {
+		return 0, 0, errors.New("Client id format error")
+	}
+	index, err := strconv.ParseInt(parts[2], 10, 32)
+	if err != nil {
+		return 0, 0, err
+	}
+	id, err := strconv.ParseInt(parts[1], 16, 64)
+	if err != nil {
+		return 0, 0, err
+	}
+	return int(index), id, nil
+}
+
 func (connData *ConnectionData) GetId() int64 {
 	return connData.id
 }

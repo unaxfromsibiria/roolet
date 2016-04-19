@@ -14,6 +14,7 @@ const (
 	ErrorCodeMethodAuthFailed        = 4
 	ErrorCodeAccessDenied            = 5
 	ErrorCodeUnexpectedValue         = 6
+	ErrorCodeRemouteMethodNotExists  = 7
 )
 
 // helper
