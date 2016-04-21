@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -314,4 +315,27 @@ func CopyFile(dstFilePath, srcFilePath string) error {
 	} else {
 		return dstFile.Close()
 	}
+}
+
+type TaskIdGenerator struct {
+	index uint64
+}
+
+func (generator *TaskIdGenerator) add() {
+	atomic.AddUint64(&(generator.index), 1)
+}
+
+func NewTaskIdGenerator() *TaskIdGenerator {
+	result := TaskIdGenerator{}
+	return &result
+}
+
+func (generator *TaskIdGenerator) CreateTaskId() string {
+	generator.add()
+	buf := make([]byte, randPartSize)
+	for i := 0; i < randPartSize; i++ {
+		buf[i] = acceptHexCahrs[rand.Intn(16)]
+	}
+	index := atomic.LoadUint64(&(generator.index))
+	return fmt.Sprintf("%s-%016X", buf, index)
 }

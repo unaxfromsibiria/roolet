@@ -225,10 +225,16 @@ func ProcUpdateStatus(handler *coreprocessing.Handler, inIns *coreprocessing.Cor
 	return result
 }
 
+type RpcAnswerData struct {
+	Cid  string `json:"cid"`
+	Task string `json:"task"`
+}
+
 // main method for client routing to server methods
 func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
 	var answer *transport.Answer
 	var errStr string
+	var answerData string
 	insType := coreprocessing.TypeInstructionSkip
 	errCode := 0
 	// check methods
@@ -236,10 +242,27 @@ func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 		cidMethods := coreprocessing.NewRpcServerManager()
 		variants := cidMethods.GetCidVariants((*cmd).Method)
 		if len(variants) > 0 {
-			// TODO:
-			// 1 - selected free server
-			// 		
-			// 2 - create task id
+			var freeCid string
+			for _, serverCid := range variants {
+				if handler.StateCheker.ClientBusy(serverCid) {
+					freeCid = serverCid
+					break
+				}
+			}
+			if len(freeCid) > 0 {
+				data := RpcAnswerData{
+					Cid:  freeCid,
+					Task: handler.TaskIdGenerator.CreateTaskId()}
+				if strData, err := json.Marshal(data); err == nil {
+					answerData = string(strData)
+				} else {
+					errCode = transport.ErrorCodeInternalProblem
+					errStr = fmt.Sprintf("Error dump %T: '%s'", data, err)
+				}
+			} else {
+				errCode = transport.ErrorCodeAllServerBusy
+				errStr = fmt.Sprintf("All server busy for method '%s'.", (*cmd).Method)
+			}
 		} else {
 			errCode = transport.ErrorCodeRemouteMethodNotExists
 			errStr = fmt.Sprintf("Method '%s' unregistred.", (*cmd).Method)
@@ -251,6 +274,9 @@ func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 	if errCode > 0 {
 		insType = coreprocessing.TypeInstructionProblem
 		answer = inIns.MakeErrAnswer(errCode, errStr)
+	} else {
+		insType = coreprocessing.TypeInstructionOk
+		answer = inIns.MakeOkAnswer(answerData)
 	}
 	result := coreprocessing.NewCoreInstruction(insType)
 	result.SetAnswer(answer)
@@ -265,7 +291,7 @@ func ProcCallServerMethod(
 	var result []*coreprocessing.CoreInstruction
 	// TODO:
 	// 1 - make instruction with command for selected server
-	// don't change state, busy status must return remoute server 
+	// don't change state, busy status must return remoute server
 	return result
 }
 

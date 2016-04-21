@@ -2,6 +2,7 @@ package coreprocessing
 
 import (
 	"roolet/connectionsupport"
+	"roolet/helpers"
 	"roolet/options"
 	"roolet/rllogger"
 	"roolet/statistic"
@@ -151,7 +152,7 @@ func (manager *RpcServerManager) GetCidVariants(method string) []string {
 			for cid, _ := range set.set {
 				result[index] = cid
 				index++
-			}	
+			}
 		}
 	}
 	return result
@@ -254,11 +255,12 @@ func SetupMethod(insType int, method InstructionHandlerMethod, postMethod Instru
 }
 
 type Handler struct {
-	StateCheker connectionsupport.ConnectionStateChecker
-	Option      options.SysOption
-	Stat        statistic.StatisticUpdater
-	worker      int
-	methods     *map[int]InstructionHandlerMethod
+	StateCheker     connectionsupport.ConnectionStateChecker
+	Option          options.SysOption
+	Stat            statistic.StatisticUpdater
+	TaskIdGenerator *helpers.TaskIdGenerator
+	worker          int
+	methods         *map[int]InstructionHandlerMethod
 }
 
 type HandlerConfigurator interface {
@@ -298,8 +300,8 @@ func (handler *Handler) Execute(ins *CoreInstruction) []*CoreInstruction {
 		result = make([]*CoreInstruction, size)
 		result[0] = outIns
 		if exists {
-			for index, methodPtr := range(externIns) {
-				result[index + 1] = methodPtr
+			for index, methodPtr := range externIns {
+				result[index+1] = methodPtr
 			}
 		}
 	} else {

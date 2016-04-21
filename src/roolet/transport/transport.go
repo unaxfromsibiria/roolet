@@ -15,6 +15,7 @@ const (
 	ErrorCodeAccessDenied            = 5
 	ErrorCodeUnexpectedValue         = 6
 	ErrorCodeRemouteMethodNotExists  = 7
+	ErrorCodeAllServerBusy           = 8
 )
 
 // helper

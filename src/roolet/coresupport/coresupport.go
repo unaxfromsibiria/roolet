@@ -3,6 +3,7 @@ package coresupport
 import (
 	"roolet/connectionsupport"
 	"roolet/coreprocessing"
+	"roolet/helpers"
 	"roolet/options"
 	"roolet/rllogger"
 	"roolet/statistic"
@@ -28,7 +29,7 @@ func worker(
 			}
 		case instruction := <-*instructionsChannel:
 			{
-				for _, newInstruction := range(handler.Execute(&instruction)) {
+				for _, newInstruction := range handler.Execute(&instruction) {
 					cid := (*newInstruction).Cid
 					if resIndex, id, err := connectionsupport.ExtractConnectionDataIndexAndId(cid); err == nil {
 						if !(*outGroups)[resIndex].Send(id, newInstruction) {
@@ -40,7 +41,7 @@ func worker(
 						rllogger.Outputf(
 							rllogger.LogError,
 							"CID format error! value: %s worker: %d", cid, index)
-					}					
+					}
 				}
 			}
 		}
@@ -137,8 +138,10 @@ func NewCoreWorkerManager(option options.SysOption, stat *statistic.Statistic) *
 func (mng *CoreWorkerManager) Start(handlerSetuper coreprocessing.HandlerConfigurator) {
 	manager := *mng
 	count := manager.options.Workers
+	taskIdGenerator := helpers.NewTaskIdGenerator()
 	for index := 0; index < count; index++ {
 		handler := coreprocessing.NewHandler(index, manager.options, manager.statistic)
+		handler.TaskIdGenerator = taskIdGenerator
 		handlerSetuper.WorkerHandlerConfigure(handler)
 		go worker(
 			index+1,
