@@ -289,9 +289,34 @@ func ProcCallServerMethod(
 	outIns *coreprocessing.CoreInstruction) []*coreprocessing.CoreInstruction {
 	//
 	var result []*coreprocessing.CoreInstruction
-	// TODO:
-	// 1 - make instruction with command for selected server
-	// don't change state, busy status must return remoute server
+
+	if answer, exists := outIns.GetAnswer(); exists {
+		if (*answer).Error.Code == 0 {
+			if srcCmd, hasCmd := inIns.GetCommand(); hasCmd {
+				rpcData := RpcAnswerData{}
+				// little overhead - parse JSON
+				if loadErr := json.Unmarshal([]byte((*answer).Result), &rpcData); loadErr == nil {
+					srcParams := (*srcCmd).Params
+					srcParams.Task = rpcData.Task
+					// replace cid
+					srcParams.Cid = rpcData.Cid
+					newCmd := transport.NewCommandWithParams(0, (*srcCmd).Method, srcParams)
+					outIns := coreprocessing.NewCoreInstruction(coreprocessing.TypeInstructionExecute)
+					outIns.SetCommand(newCmd)
+					result = []*coreprocessing.CoreInstruction{outIns}
+				} else {
+					rllogger.Outputf(
+						rllogger.LogError,
+						"Answer from ProcRouteRpc has incorrect data format, from: %s",
+						inIns.Cid)
+				}
+			} else {
+				rllogger.Outputf(rllogger.LogError, "Answer lost in ProcRouteRpc! from: %s", inIns.Cid)
+			}
+		}
+	} else {
+		rllogger.Outputf(rllogger.LogError, "Answer lost in ProcRouteRpc! from: %s", inIns.Cid)
+	}
 	return result
 }
 

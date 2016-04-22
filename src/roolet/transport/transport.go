@@ -39,6 +39,8 @@ type MethodParams struct {
 	Data string `json:"data"`
 	// json
 	Json string `json:"json"`
+	// task
+	Task string `json:"json"`
 }
 
 func (parmas MethodParams) String() string {
@@ -123,6 +125,14 @@ func NewCommand(id int, cid, method, data string) *Command {
 		Id:     id,
 		Method: method,
 		Params: MethodParams{Data: data, Cid: cid}}
+	return &cmd
+}
+
+func NewCommandWithParams(id int, method string, params MethodParams) *Command {
+	cmd := Command{
+		Id:     id,
+		Params: params,
+		Method: method}
 	return &cmd
 }
 

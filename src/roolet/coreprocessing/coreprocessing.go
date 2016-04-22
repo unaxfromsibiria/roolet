@@ -20,8 +20,8 @@ const (
 	TypeInstructionPong   = 40
 	TypeInstructionStatus = 50
 	TypeInstructionReg    = 55
-	// method of client
 	TypeInstructionExternal = 100
+	TypeInstructionExecute  = 110
 )
 
 type CoreInstruction struct {
