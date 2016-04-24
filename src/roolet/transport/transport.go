@@ -40,7 +40,7 @@ type MethodParams struct {
 	// json
 	Json string `json:"json"`
 	// task
-	Task string `json:"json"`
+	Task string `json:"task"`
 }
 
 func (parmas MethodParams) String() string {

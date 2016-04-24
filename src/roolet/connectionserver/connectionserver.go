@@ -226,7 +226,7 @@ func (server *ConnectionServer) startListener(workerManager *coresupport.CoreWor
 					tcpConnection.SetKeepAlivePeriod(
 						time.Duration(1+options.StatusCheckPeriod) * time.Second)
 					server.stat.SendMsg("connection_count", 1)
-					server.connectionReadProcessing(
+					go server.connectionReadProcessing(
 						newConnection,
 						workerManager,
 						clientAddr)

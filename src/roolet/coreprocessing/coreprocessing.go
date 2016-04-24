@@ -292,16 +292,17 @@ func (handler *Handler) Execute(ins *CoreInstruction) []*CoreInstruction {
 		(*outIns).Cid = (*ins).Cid
 		// post method
 		postMethod, exists := postMethods[ins.Type]
-		externIns := postMethod(handler, ins, outIns)
 		size := 1
+		var externIns []*CoreInstruction
 		if exists {
+			externIns = postMethod(handler, ins, outIns)
 			size += len(externIns)
 		}
 		result = make([]*CoreInstruction, size)
 		result[0] = outIns
 		if exists {
-			for index, methodPtr := range externIns {
-				result[index+1] = methodPtr
+			for index, insPtr := range externIns {
+				result[index+1] = insPtr
 			}
 		}
 	} else {

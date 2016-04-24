@@ -16,11 +16,11 @@ func TestSimpleCmdGet(t *testing.T) {
 }
 
 func TestSimpleCmdLoad(t *testing.T) {
-	data := ("{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"method_get\",\"Params\":" +
-		"{\"cid\":\"some-id\",\"data\":\"eyJzdGF0dXMiOiAyfQ==\",\"json\":\"\"}}")
+	data := ("{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"method_get\",\"params\":" +
+		"{\"cid\":\"some-id\",\"data\":\"eyJzdGF0dXMiOiAyfQ==\",\"json\":\"{}\"}}")
 	cmd := transport.Command{}
 	dat := []byte(data)
-	if cmd.Load(&dat) == nil && cmd.Params.Cid == "some-id" {
+	if cmd.Load(&dat) == nil && cmd.Params.Cid == "some-id" && cmd.Params.Json == "{}" {
 		t.Logf("Load command: %s", cmd)
 	} else {
 		t.Error("Load json object error.")

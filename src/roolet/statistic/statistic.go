@@ -7,6 +7,7 @@ import (
 	"roolet/helpers"
 	"roolet/options"
 	"roolet/rllogger"
+	"sort"
 	"sync"
 	"time"
 )
@@ -188,7 +189,6 @@ func (stat *Statistic) SendResult() {
 		return
 	}
 	var lines []string
-	lines = append(lines, fmt.Sprintf("Message count: %d", (*stat).msgCount))
 	var label string
 	for code, value := range (*stat).items {
 		if itemLabel, exists := (*stat).labels[code]; exists {
@@ -198,10 +198,16 @@ func (stat *Statistic) SendResult() {
 		}
 		lines = append(lines, fmt.Sprintf("%s: %s", label, value))
 	}
-	rllogger.OutputLines(rllogger.LogInfo, "statistic", &lines)
+	sort.Strings(lines)
+	allLines := make([]string, 1+len(lines))
+	allLines[0] = fmt.Sprintf("Message count: %d", (*stat).msgCount)
+	for index, ln := range lines {
+		allLines[1+index] = ln
+	}
+	rllogger.OutputLines(rllogger.LogInfo, "statistic", &allLines)
 	if len((*stat).outHandlers) > 0 {
 		for _, outHandler := range (*stat).outHandlers {
-			outHandler((*stat).lastSendTime, &lines)
+			outHandler((*stat).lastSendTime, &allLines)
 		}
 	}
 }

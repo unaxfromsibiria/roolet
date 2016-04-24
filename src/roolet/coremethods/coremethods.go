@@ -230,6 +230,10 @@ type RpcAnswerData struct {
 	Task string `json:"task"`
 }
 
+func (rpcData RpcAnswerData) String() string {
+	return fmt.Sprintf("task: %s to: %s", rpcData.Task, rpcData.Task)
+}
+
 // main method for client routing to server methods
 func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
 	var answer *transport.Answer
@@ -253,6 +257,8 @@ func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 				data := RpcAnswerData{
 					Cid:  freeCid,
 					Task: handler.TaskIdGenerator.CreateTaskId()}
+				// TODO: to debug
+				rllogger.Outputf(rllogger.LogInfo, "rpc call: '%s()' -> %s", (*cmd).Method, data)
 				if strData, err := json.Marshal(data); err == nil {
 					answerData = string(strData)
 				} else {

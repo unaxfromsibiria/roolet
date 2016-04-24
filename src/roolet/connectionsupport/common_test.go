@@ -167,7 +167,7 @@ func TestNormalDistributionOfMissesAndHits(t *testing.T) {
 	option := options.SysOption{}
 	manager := connectionsupport.NewConnectionDataManager(option)
 	wCount := 100
-	operCount := 10000
+	operCount := 1000
 	for i := 0; i < 3462; i++ {
 		manager.NewConnection()
 	}
@@ -183,19 +183,19 @@ func TestNormalDistributionOfMissesAndHits(t *testing.T) {
 	worker := func(done *chan res, m *connectionsupport.ConnectionDataManager, cid string) {
 		r := res{}
 		for i := 0; i < operCount; i++ {
-			isActive := rand.Intn(10) > 5
+			isActive := rand.Intn(100) > 50
 			if isActive {
 				changes.Status = connectionsupport.ClientStatusActive
 			} else {
 				changes.Status = connectionsupport.ClientStatusBusy
 			}
 
-			m.UpdateState(cid, changes)
 			if isActive == m.ClientBusy(connData.Cid) {
 				r.Hits++
 			} else {
 				r.Misses++
 			}
+			m.UpdateState(cid, changes)
 		}
 		r.Done = true
 		(*done) <- r
@@ -220,11 +220,11 @@ func TestNormalDistributionOfMissesAndHits(t *testing.T) {
 	if total != wCount*operCount {
 		t.Error("Test broken!")
 	}
-	// only if result > 10%
-	if float32(hits)/float32(total)*100.0 < 50.0 {
+	// count hits/misses must > 40% of total
+	if float32(hits)/float32(total)*100.0 < 40.0 {
 		t.Error("Async work problem with hits")
 	}
-	if float32(misses)/float32(total)*100.0 < 5.0 {
+	if float32(misses)/float32(total)*100.0 < 40.0 {
 		t.Error("Async work problem with misses")
 	}
 }
