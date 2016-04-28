@@ -140,6 +140,14 @@ func (manager *RpcServerManager) Append(cid string, methods *[]string) {
 	}
 }
 
+func (manager *RpcServerManager) Remove(cid string) {
+	manager.Lock(true)
+	defer manager.Unlock(true)
+	for _, setPtr := range (*manager).methods {
+		setPtr.Remove(cid)
+	}
+}
+
 func (manager *RpcServerManager) GetCidVariants(method string) []string {
 	manager.Lock(false)
 	defer manager.Unlock(false)

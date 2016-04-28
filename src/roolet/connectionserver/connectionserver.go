@@ -186,7 +186,15 @@ func (server *ConnectionServer) connectionReadProcessing(
 			wait = false
 		}
 	}
-	server.stat.SendMsg("connection_count", -1)
+	server.stat.DelOneMsg("connection_count")
+	// remove from methods
+	if server.connectionDataManager.ClientInGroup(connectionData.Cid, connectionsupport.GroupConnectionServer) {
+		cidMethods := coreprocessing.NewRpcServerManager()
+		cidMethods.Remove(connectionData.Cid)
+		server.stat.DelOneMsg("count_connection_server")
+	} else {
+		server.stat.DelOneMsg("count_connection_client")
+	}
 	workerManager.RemoveBackChannel(connectionData)
 	server.connectionDataManager.RemoveConnection(connectionData.Cid)
 	// TODO: rllogger.LogDebug

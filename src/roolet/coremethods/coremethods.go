@@ -231,7 +231,7 @@ type RpcAnswerData struct {
 }
 
 func (rpcData RpcAnswerData) String() string {
-	return fmt.Sprintf("task: %s to: %s", rpcData.Task, rpcData.Task)
+	return fmt.Sprintf("task: %s to: %s", rpcData.Task, rpcData.Cid)
 }
 
 // main method for client routing to server methods
@@ -248,7 +248,7 @@ func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 		if len(variants) > 0 {
 			var freeCid string
 			for _, serverCid := range variants {
-				if handler.StateCheker.ClientBusy(serverCid) {
+				if !handler.StateCheker.ClientBusy(serverCid) {
 					freeCid = serverCid
 					break
 				}
@@ -271,7 +271,7 @@ func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 			}
 		} else {
 			errCode = transport.ErrorCodeRemouteMethodNotExists
-			errStr = fmt.Sprintf("Method '%s' unregistred.", (*cmd).Method)
+			errStr = fmt.Sprintf("Method '%s' unregistred or workers lost.", (*cmd).Method)
 		}
 	} else {
 		errCode = transport.ErrorCodeCommandFormatWrong
