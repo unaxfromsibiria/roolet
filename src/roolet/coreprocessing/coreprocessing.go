@@ -15,13 +15,14 @@ const (
 	TypeInstructionOk      = 2
 	TypeInstructionExit    = 10
 	// turnoff it after
-	TypeInstructionPing   = 20
-	TypeInstructionAuth   = 30
-	TypeInstructionPong   = 40
-	TypeInstructionStatus = 50
-	TypeInstructionReg    = 55
+	TypeInstructionPing     = 20
+	TypeInstructionAuth     = 30
+	TypeInstructionPong     = 40
+	TypeInstructionStatus   = 50
+	TypeInstructionReg      = 55
 	TypeInstructionExternal = 100
 	TypeInstructionExecute  = 110
+	TypeInstructionResult   = 120
 )
 
 type CoreInstruction struct {
@@ -120,8 +121,46 @@ func (set *CidSet) Exists(cid string) bool {
 	return false
 }
 
+type ResultDirectionMap struct {
+	connectionsupport.AsyncSafeObject
+	// {<task>: <client cid>}
+	tasks map[string]string
+}
+
+func newResultDirectionMap() *ResultDirectionMap {
+	result := ResultDirectionMap{
+		AsyncSafeObject: *(connectionsupport.NewAsyncSafeObject()),
+		tasks:           make(map[string]string)}
+	return &result
+}
+
+func (resultmap *ResultDirectionMap) SetForTask(task, direction string) {
+	resultmap.Lock(true)
+	defer resultmap.Unlock(true)
+	if _, exists := (*resultmap).tasks[task]; exists {
+		// wtf?
+		rllogger.Outputf(rllogger.LogError, "Re-recording conflict from %s for task: %s", direction, task)
+	} else {
+		(*resultmap).tasks[task] = direction
+	}
+}
+
+func (resultmap *ResultDirectionMap) Get(task string) (bool, string) {
+	resultmap.Lock(true)
+	defer resultmap.Unlock(true)
+	if cid, exists := (*resultmap).tasks[task]; exists {
+		defer delete((*resultmap).tasks, task)
+		return true, cid
+	} else {
+		rllogger.Outputf(rllogger.LogError, "Double reading conflict for task: %s", task)
+		return false, ""
+	}
+}
+
 // server manager
 type RpcServerManager struct {
+	ResultDirection *ResultDirectionMap
+	// TODO: result heap with timer
 	connectionsupport.AsyncSafeObject
 	methods map[string]*CidSet
 }
@@ -168,6 +207,7 @@ func (manager *RpcServerManager) GetCidVariants(method string) []string {
 
 var onceRpcServerManager = RpcServerManager{
 	AsyncSafeObject: *(connectionsupport.NewAsyncSafeObject()),
+	ResultDirection: newResultDirectionMap(),
 	methods:         make(map[string]*CidSet)}
 
 func NewRpcServerManager() *RpcServerManager {
@@ -187,6 +227,7 @@ var onceMethodInstructionDict MethodInstructionDict = MethodInstructionDict{
 		"auth":         TypeInstructionAuth,
 		"registration": TypeInstructionReg,
 		"statusupdate": TypeInstructionStatus,
+		"result":       TypeInstructionResult,
 		"ping":         TypeInstructionPing,
 		"quit":         TypeInstructionExit,
 		"exit":         TypeInstructionExit}}

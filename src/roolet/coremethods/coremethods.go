@@ -261,6 +261,7 @@ func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 				rllogger.Outputf(rllogger.LogInfo, "rpc call: '%s()' -> %s", (*cmd).Method, data)
 				if strData, err := json.Marshal(data); err == nil {
 					answerData = string(strData)
+					cidMethods.ResultDirection.SetForTask(data.Task, (*inIns).Cid)
 				} else {
 					errCode = transport.ErrorCodeInternalProblem
 					errStr = fmt.Sprintf("Error dump %T: '%s'", data, err)
@@ -307,9 +308,9 @@ func ProcCallServerMethod(
 					// replace cid
 					srcParams.Cid = rpcData.Cid
 					newCmd := transport.NewCommandWithParams(0, (*srcCmd).Method, srcParams)
-					outIns := coreprocessing.NewCoreInstruction(coreprocessing.TypeInstructionExecute)
-					outIns.SetCommand(newCmd)
-					result = []*coreprocessing.CoreInstruction{outIns}
+					resultIns := coreprocessing.NewCoreInstruction(coreprocessing.TypeInstructionExecute)
+					resultIns.SetCommand(newCmd)
+					result = []*coreprocessing.CoreInstruction{resultIns}
 				} else {
 					rllogger.Outputf(
 						rllogger.LogError,
@@ -326,10 +327,65 @@ func ProcCallServerMethod(
 	return result
 }
 
+func ProcResultReturned(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
+	var answer *transport.Answer
+	var errStr string
+	insType := coreprocessing.TypeInstructionSkip
+	errCode := 0
+
+	if cmd, exists := inIns.GetCommand(); exists {
+		if len((*cmd).Params.Task) < 1 {
+			errCode = transport.ErrorCodeMethodParamsFormatWrong
+			errStr = "Task Id does not exist."
+		}
+	} else {
+		errCode = transport.ErrorCodeCommandFormatWrong
+		errStr = "Command is empty."
+	}
+	if errCode > 0 {
+		insType = coreprocessing.TypeInstructionProblem
+		answer = inIns.MakeErrAnswer(errCode, errStr)
+	} else {
+		insType = coreprocessing.TypeInstructionOk
+		answer = inIns.MakeOkAnswer("{\"ok\": true}")
+	}
+	result := coreprocessing.NewCoreInstruction(insType)
+	result.SetAnswer(answer)
+	return result
+}
+
+func ProcRecordResult(
+	handler *coreprocessing.Handler,
+	inIns *coreprocessing.CoreInstruction,
+	outIns *coreprocessing.CoreInstruction) []*coreprocessing.CoreInstruction {
+	//
+	var result []*coreprocessing.CoreInstruction
+	if answer, _ := outIns.GetAnswer(); (*answer).Error.Code == 0 {
+		if srcCmd, hasCmd := inIns.GetCommand(); hasCmd {
+			cidMethods := coreprocessing.NewRpcServerManager()
+			// task ID must placed in prams.data
+			if hasCid, targetCid := cidMethods.ResultDirection.Get((*srcCmd).Params.Data); hasCid {
+				// check client group
+				if handler.StateCheker.ClientInGroup(targetCid, connectionsupport.GroupConnectionWsClient) {
+					// TODO: create answer here and return as result
+					// It will be immediately written to web-socket connection 
+				} else {
+					/// TODO:
+					// write result to heap
+				}
+			} else {
+				rllogger.Outputf(rllogger.LogError, "Processing pass for: %s", srcCmd)
+			}			
+		}
+	}
+	return result
+}
+
 func Setup() {
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionPing, ProcPing, nil)
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionAuth, ProcAuth, nil)
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionReg, ProcRegistration, nil)
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionStatus, ProcUpdateStatus, nil)
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionExternal, ProcRouteRpc, ProcCallServerMethod)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionResult, ProcResultReturned, ProcRecordResult)
 }

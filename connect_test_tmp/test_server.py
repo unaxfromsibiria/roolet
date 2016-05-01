@@ -33,6 +33,21 @@ token = (
     'tMejRJX0pNeDh1bXZSN3NzNXZn')
 
 
+def calc_main_method(task, method, x=1, y=1):
+    value = 0
+    if method == 'calc_composition':
+        value = x * y
+    elif method == 'calc_sum':
+        value = x + y
+    elif nethod == 'calc_power':
+        value = x ** y
+
+    return ('result', {'data': task, 'json': {'result': value}})
+
+
+def get_status_busy_command():
+    return ('statusupdate', {'data': '2'})
+
 def send_ping(result, state):
     time.sleep(2)
     return ('ping', {})
@@ -79,9 +94,11 @@ def run():
     tmp = conn.recv(1024)
     state = dict(exit=False)
     last_mehod = 'auth'
+    calc_data = {}
 
     while tmp:
         answer = None
+
         if tmp:
             print('-----------------------')
             try:
@@ -112,9 +129,29 @@ def run():
                             except Exception as err:
                                 print(err)
                                 result = {}
-                            answer = get_new_command(last_mehod, result, state)
-                            if answer:
-                                last_mehod, __ = answer
+                                
+                            if result:
+                                # comman or answer
+                                if 'method' in result:
+                                    task = None
+                                    params = result.get('params')
+                                    if params:
+                                        task = params.get('task')
+                                        params = params.get('json')
+                                        params = json.loads(params or '{}')
+                                    else:
+                                        params = {}
+    
+                                    calc_data.update(task=task, method=result.get('method'), **params)
+                                    # send busy
+                                    answer = get_status_busy_command()
+                                elif calc_data:
+                                    answer = calc_main_method(**calc_data)
+                                    calc_data.clear()
+                                else:
+                                    answer = get_new_command(last_mehod, result, state)
+                                    if answer:
+                                        last_mehod, __ = answer
                         else:
                             result = {}
                             if error:
