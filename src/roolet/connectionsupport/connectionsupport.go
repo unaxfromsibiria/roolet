@@ -8,7 +8,6 @@ import (
 	"roolet/rllogger"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 const (
@@ -30,31 +29,6 @@ const (
 	StateChangesTypeGroup  = 3
 	StateChangesTypeStatus = 4
 )
-
-type AsyncSafeObject struct {
-	changeLock *sync.RWMutex
-}
-
-func NewAsyncSafeObject() *AsyncSafeObject {
-	obj := AsyncSafeObject{changeLock: new(sync.RWMutex)}
-	return &obj
-}
-
-func (obj *AsyncSafeObject) Lock(rw bool) {
-	if rw {
-		(*obj).changeLock.Lock()
-	} else {
-		(*obj).changeLock.RLock()
-	}
-}
-
-func (obj *AsyncSafeObject) Unlock(rw bool) {
-	if rw {
-		(*obj).changeLock.Unlock()
-	} else {
-		(*obj).changeLock.RUnlock()
-	}
-}
 
 type ConnectionData struct {
 	Cid string
@@ -161,7 +135,7 @@ func (changes StateChanges) update(state *ClientStateData) {
 
 // part of client data map
 type ConnectionDataStorageCell struct {
-	AsyncSafeObject
+	helpers.AsyncSafeObject
 	data map[int64]*ClientStateData
 }
 
@@ -198,7 +172,7 @@ func (cell *ConnectionDataStorageCell) IsBusy(id int64) bool {
 }
 
 func newConnectionDataStorageCell() *ConnectionDataStorageCell {
-	objPtr := NewAsyncSafeObject()
+	objPtr := helpers.NewAsyncSafeObject()
 	result := ConnectionDataStorageCell{
 		data:            make(map[int64]*ClientStateData),
 		AsyncSafeObject: *objPtr}
@@ -213,7 +187,7 @@ type ConnectionStateChecker interface {
 }
 
 type ConnectionDataManager struct {
-	AsyncSafeObject
+	helpers.AsyncSafeObject
 	rand    helpers.SysRandom
 	options options.SysOption
 	storage []*ConnectionDataStorageCell
@@ -228,7 +202,7 @@ func NewConnectionDataManager(options options.SysOption) *ConnectionDataManager 
 		options: options,
 		// all pointer set reserved now
 		storage:         make([]*ConnectionDataStorageCell, GroupCount),
-		AsyncSafeObject: AsyncSafeObject{changeLock: new(sync.RWMutex)}}
+		AsyncSafeObject: *(helpers.NewAsyncSafeObject())}
 	return &result
 }
 

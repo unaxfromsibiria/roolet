@@ -15,10 +15,12 @@ import (
 )
 
 const (
-	acceptCahrs         = "abcdefghijkmnpqrstuvwxyz9876543210"
-	acceptHexCahrs      = "abcdef9876543210"
-	DefaultPasswordSize = 64
-	randPartSize        = 8
+	acceptCahrs            = "abcdefghijkmnpqrstuvwxyz9876543210"
+	acceptHexCahrs         = "abcdef9876543210"
+	DefaultPasswordSize    = 64
+	randPartSize           = 8
+	asyncDictCountParts    = 32
+	asyncDictCountPartsLim = asyncDictCountParts - 1
 )
 
 func GetFullFilePath(dir, fileName string) string {
@@ -31,6 +33,32 @@ func GetFullFilePath(dir, fileName string) string {
 	return path.Join(pwdDir, dir, fileName)
 }
 
+type AsyncSafeObject struct {
+	changeLock *sync.RWMutex
+}
+
+func NewAsyncSafeObject() *AsyncSafeObject {
+	obj := AsyncSafeObject{changeLock: new(sync.RWMutex)}
+	return &obj
+}
+
+func (obj *AsyncSafeObject) Lock(rw bool) {
+	if rw {
+		(*obj).changeLock.Lock()
+	} else {
+		(*obj).changeLock.RLock()
+	}
+}
+
+func (obj *AsyncSafeObject) Unlock(rw bool) {
+	if rw {
+		(*obj).changeLock.Unlock()
+	} else {
+		(*obj).changeLock.RUnlock()
+	}
+}
+
+// deprecated
 type CoroutineActiveResource struct {
 	active     bool
 	changeLock *sync.RWMutex
@@ -338,4 +366,152 @@ func (generator *TaskIdGenerator) CreateTaskId() string {
 	}
 	index := atomic.LoadUint64(&(generator.index))
 	return fmt.Sprintf("%s-%016X", buf, index)
+}
+
+type asyncStrDictPart struct {
+	AsyncSafeObject
+	content map[string]string
+}
+
+func newasyncStrDictPart() *asyncStrDictPart {
+	return &(asyncStrDictPart{
+		content:         make(map[string]string),
+		AsyncSafeObject: *(NewAsyncSafeObject())})
+}
+
+func (part *asyncStrDictPart) set(key, value string) {
+	part.Lock(true)
+	defer part.Unlock(true)
+	(*part).content[key] = value
+}
+
+func (part *asyncStrDictPart) get(key string) *string {
+	part.Lock(false)
+	defer part.Unlock(false)
+	var result *string
+	if item, exists := (*part).content[key]; exists {
+		result = &item
+	}
+	return result
+}
+
+func (part *asyncStrDictPart) exist(key string) bool {
+	part.Lock(false)
+	defer part.Unlock(false)
+	_, result := (*part).content[key]
+	return result
+}
+
+func (part *asyncStrDictPart) deleteItem(key string) bool {
+	part.Lock(true)
+	defer part.Unlock(true)
+	if _, exists := (*part).content[key]; exists {
+		delete((*part).content, key)
+		return true
+	}
+	return false
+}
+
+func (part *asyncStrDictPart) clear() {
+	part.Lock(true)
+	defer part.Unlock(true)
+	for key, _ := range (*part).content {
+		delete((*part).content, key)
+	}
+}
+
+func (part *asyncStrDictPart) size() int {
+	part.Lock(false)
+	defer part.Unlock(false)
+	return int(len((*part).content))
+}
+
+type AsyncStrDict struct {
+	pool []*asyncStrDictPart
+	seek int32
+}
+
+func NewAsyncStrDict() *AsyncStrDict {
+	result := AsyncStrDict{
+		pool: make([]*asyncStrDictPart, asyncDictCountParts)}
+	for i := 0; i < asyncDictCountParts; i++ {
+		result.pool[i] = newasyncStrDictPart()
+	}
+	return &result
+}
+
+func (dict *AsyncStrDict) getSeek() int {
+	seek := int(atomic.LoadInt32(&(dict.seek)))
+	if seek >= asyncDictCountPartsLim {
+		seek = asyncDictCountPartsLim
+		atomic.StoreInt32(&(dict.seek), 0)
+	} else {
+		atomic.AddInt32(&(dict.seek), 1)
+	}
+	return seek
+}
+
+func (dict *AsyncStrDict) Set(key, value string) {
+	seek := -1
+	for i := 0; i < asyncDictCountParts; i++ {
+		if dict.pool[i].exist(key) {
+			// not use break here
+			// this is solution for problem - very fast start Set duplicated keys
+			if seek >= 0 {
+				dict.pool[seek].deleteItem(key)
+			}
+			seek = i
+		}
+	}
+	if seek < 0 {
+		seek = dict.getSeek()
+	}
+	dict.pool[seek].set(key, value)
+}
+
+// fast method, only if you watch and delete keys
+func (dict *AsyncStrDict) SetUnsafe(key, value string) {
+	dict.pool[dict.getSeek()].set(key, value)
+}
+
+func (dict *AsyncStrDict) Get(key string) *string {
+	var result *string
+	for i := 0; i < asyncDictCountParts; i++ {
+		result = dict.pool[i].get(key)
+		if result != nil {
+			return result
+		}
+	}
+	return result
+}
+
+func (dict *AsyncStrDict) Exists(key string) bool {
+	for i := 0; i < asyncDictCountParts; i++ {
+		if dict.pool[i].exist(key) {
+			return true
+		}
+	}
+	return false
+}
+
+func (dict *AsyncStrDict) Delete(key string) {
+	for i := 0; i < asyncDictCountParts; i++ {
+		if dict.pool[i].deleteItem(key) {
+			return
+		}
+	}
+}
+
+func (dict *AsyncStrDict) Clear() {
+	for i := 0; i < asyncDictCountParts; i++ {
+		dict.pool[i].clear()
+	}
+}
+
+func (dict *AsyncStrDict) Size() int {
+	var result int
+	for i := 0; i < asyncDictCountParts; i++ {
+		result += dict.pool[i].size()
+	}
+	return result
 }

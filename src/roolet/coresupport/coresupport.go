@@ -51,12 +51,12 @@ func worker(
 }
 
 type outChannelGroup struct {
-	connectionsupport.AsyncSafeObject
+	helpers.AsyncSafeObject
 	channels map[int64]*chan coreprocessing.CoreInstruction
 }
 
 func newOutChannelGroup() *outChannelGroup {
-	objPtr := connectionsupport.NewAsyncSafeObject()
+	objPtr := helpers.NewAsyncSafeObject()
 	group := outChannelGroup{
 		AsyncSafeObject: *objPtr,
 		channels:        make(map[int64]*chan coreprocessing.CoreInstruction)}

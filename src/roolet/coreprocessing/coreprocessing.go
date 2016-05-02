@@ -122,14 +122,14 @@ func (set *CidSet) Exists(cid string) bool {
 }
 
 type ResultDirectionMap struct {
-	connectionsupport.AsyncSafeObject
+	helpers.AsyncSafeObject
 	// {<task>: <client cid>}
 	tasks map[string]string
 }
 
 func newResultDirectionMap() *ResultDirectionMap {
 	result := ResultDirectionMap{
-		AsyncSafeObject: *(connectionsupport.NewAsyncSafeObject()),
+		AsyncSafeObject: *(helpers.NewAsyncSafeObject()),
 		tasks:           make(map[string]string)}
 	return &result
 }
@@ -161,7 +161,7 @@ func (resultmap *ResultDirectionMap) Get(task string) (bool, string) {
 type RpcServerManager struct {
 	ResultDirection *ResultDirectionMap
 	// TODO: result heap with timer
-	connectionsupport.AsyncSafeObject
+	helpers.AsyncSafeObject
 	methods map[string]*CidSet
 }
 
@@ -206,7 +206,7 @@ func (manager *RpcServerManager) GetCidVariants(method string) []string {
 }
 
 var onceRpcServerManager = RpcServerManager{
-	AsyncSafeObject: *(connectionsupport.NewAsyncSafeObject()),
+	AsyncSafeObject: *(helpers.NewAsyncSafeObject()),
 	ResultDirection: newResultDirectionMap(),
 	methods:         make(map[string]*CidSet)}
 
@@ -217,12 +217,12 @@ func NewRpcServerManager() *RpcServerManager {
 
 // main instruction commnad router
 type MethodInstructionDict struct {
-	connectionsupport.AsyncSafeObject
+	helpers.AsyncSafeObject
 	content map[string]int
 }
 
 var onceMethodInstructionDict MethodInstructionDict = MethodInstructionDict{
-	AsyncSafeObject: *(connectionsupport.NewAsyncSafeObject()),
+	AsyncSafeObject: *(helpers.NewAsyncSafeObject()),
 	content: map[string]int{
 		"auth":         TypeInstructionAuth,
 		"registration": TypeInstructionReg,
