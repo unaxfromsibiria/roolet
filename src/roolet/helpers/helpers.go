@@ -19,7 +19,7 @@ const (
 	acceptHexCahrs         = "abcdef9876543210"
 	DefaultPasswordSize    = 64
 	randPartSize           = 8
-	asyncDictCountParts    = 32
+	asyncDictCountParts    = 64
 	asyncDictCountPartsLim = asyncDictCountParts - 1
 )
 
@@ -453,7 +453,7 @@ func (dict *AsyncStrDict) getSeek() int {
 
 func (dict *AsyncStrDict) Set(key, value string) {
 	seek := -1
-	for i := 0; i < asyncDictCountParts; i++ {
+	for i := asyncDictCountPartsLim; i >= 0; i-- {
 		if dict.pool[i].exist(key) {
 			// not use break here
 			// this is solution for problem - very fast start Set duplicated keys
@@ -476,18 +476,25 @@ func (dict *AsyncStrDict) SetUnsafe(key, value string) {
 
 func (dict *AsyncStrDict) Get(key string) *string {
 	var result *string
-	for i := 0; i < asyncDictCountParts; i++ {
-		result = dict.pool[i].get(key)
+	mid := asyncDictCountParts / 2
+	for i := 0; i < mid; i++ {
+		result = dict.pool[mid+i].get(key)
 		if result != nil {
 			return result
+		} else {
+			result = dict.pool[i].get(key)
+			if result != nil {
+				return result
+			}
 		}
 	}
 	return result
 }
 
 func (dict *AsyncStrDict) Exists(key string) bool {
-	for i := 0; i < asyncDictCountParts; i++ {
-		if dict.pool[i].exist(key) {
+	mid := asyncDictCountParts / 2
+	for i := 0; i < mid; i++ {
+		if dict.pool[mid+i].exist(key) || dict.pool[i].exist(key) {
 			return true
 		}
 	}
@@ -495,8 +502,9 @@ func (dict *AsyncStrDict) Exists(key string) bool {
 }
 
 func (dict *AsyncStrDict) Delete(key string) {
-	for i := 0; i < asyncDictCountParts; i++ {
-		if dict.pool[i].deleteItem(key) {
+	mid := asyncDictCountParts / 2
+	for i := 0; i < mid; i++ {
+		if dict.pool[mid+i].deleteItem(key) || dict.pool[i].deleteItem(key) {
 			return
 		}
 	}

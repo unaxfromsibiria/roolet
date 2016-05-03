@@ -42,7 +42,7 @@ def calc_main_method(task, method, x=1, y=1):
     elif nethod == 'calc_power':
         value = x ** y
 
-    return ('result', {'data': task, 'json': {'result': value}})
+    return ('result', {'task': task, 'json': {'result': value}})
 
 
 def get_status_busy_command():
@@ -94,7 +94,6 @@ def run():
     tmp = conn.recv(1024)
     state = dict(exit=False)
     last_mehod = 'auth'
-    calc_data = {}
 
     while tmp:
         answer = None
@@ -123,6 +122,26 @@ def run():
                         print(data)
                         result = data.get('result')
                         error = data.get('error')
+                        cmd_method = data.get('method')
+
+                        if cmd_method:
+                            task = None
+                            params = data.get('params')
+                            if params:
+                                task = params.get('task')
+                                json_data = params.get('json') or '{}'
+                                params = json.loads(json_data)
+                                print('New task {} call: {}({})'.format(task, cmd_method, json_data))
+                            else:
+                                params = {}
+
+                            #
+                            # send busy
+                            answer = {
+                                'send': get_status_busy_command(),
+                                'execute': dict(task=task, method=cmd_method, **params),
+                            }
+
                         if result and not error:
                             try:
                                 result = json.loads(result)
@@ -131,27 +150,11 @@ def run():
                                 result = {}
                                 
                             if result:
-                                # comman or answer
-                                if 'method' in result:
-                                    task = None
-                                    params = result.get('params')
-                                    if params:
-                                        task = params.get('task')
-                                        params = params.get('json')
-                                        params = json.loads(params or '{}')
-                                    else:
-                                        params = {}
-    
-                                    calc_data.update(task=task, method=result.get('method'), **params)
-                                    # send busy
-                                    answer = get_status_busy_command()
-                                elif calc_data:
-                                    answer = calc_main_method(**calc_data)
-                                    calc_data.clear()
-                                else:
-                                    answer = get_new_command(last_mehod, result, state)
-                                    if answer:
-                                        last_mehod, __ = answer
+                                answer = get_new_command(last_mehod, result, state)
+                                if answer:
+                                    last_mehod, __ = answer
+                                answer = {'send': answer}
+
                         else:
                             result = {}
                             if error:
@@ -163,8 +166,13 @@ def run():
             break
 
         if answer:
-            answer_content = make_jsonrpc_command(*answer)
+            answer_content = make_jsonrpc_command(*(answer.get('send')))
             conn.send(answer_content)
+            if 'execute' in answer:
+                calc_answer = calc_main_method(**(answer.get('execute')))
+                if calc_answer:
+                    answer_content = make_jsonrpc_command(*calc_answer)
+                    conn.send(answer_content)
 
         tmp = conn.recv(1024)
 

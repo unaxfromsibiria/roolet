@@ -120,9 +120,14 @@ def run():
                         else:
                             result = {}
                             if error:
-                                print('Terminated with error:')
-                                print(error)
-                                state.update(exit=True)
+                                if error.get('code') in [8]:
+                                    print('Skip with error:')
+                                    print(error)
+                                    answer = get_new_command("ping", {}, state)
+                                else:
+                                    print('Terminated with error:')
+                                    print(error)
+                                    state.update(exit=True)
 
         if state.get('exit'):
             break

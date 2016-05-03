@@ -121,47 +121,13 @@ func (set *CidSet) Exists(cid string) bool {
 	return false
 }
 
-type ResultDirectionMap struct {
-	helpers.AsyncSafeObject
-	// {<task>: <client cid>}
-	tasks map[string]string
-}
-
-func newResultDirectionMap() *ResultDirectionMap {
-	result := ResultDirectionMap{
-		AsyncSafeObject: *(helpers.NewAsyncSafeObject()),
-		tasks:           make(map[string]string)}
-	return &result
-}
-
-func (resultmap *ResultDirectionMap) SetForTask(task, direction string) {
-	resultmap.Lock(true)
-	defer resultmap.Unlock(true)
-	if _, exists := (*resultmap).tasks[task]; exists {
-		// wtf?
-		rllogger.Outputf(rllogger.LogError, "Re-recording conflict from %s for task: %s", direction, task)
-	} else {
-		(*resultmap).tasks[task] = direction
-	}
-}
-
-func (resultmap *ResultDirectionMap) Get(task string) (bool, string) {
-	resultmap.Lock(true)
-	defer resultmap.Unlock(true)
-	if cid, exists := (*resultmap).tasks[task]; exists {
-		defer delete((*resultmap).tasks, task)
-		return true, cid
-	} else {
-		rllogger.Outputf(rllogger.LogError, "Double reading conflict for task: %s", task)
-		return false, ""
-	}
-}
-
 // server manager
 type RpcServerManager struct {
-	ResultDirection *ResultDirectionMap
-	// TODO: result heap with timer
 	helpers.AsyncSafeObject
+	// <task id>: <cid direction>
+	ResultDirectionDict *helpers.AsyncStrDict
+	// <cid direction>: <data>
+	ResultBufferDict *helpers.AsyncStrDict
 	methods map[string]*CidSet
 }
 
@@ -206,9 +172,10 @@ func (manager *RpcServerManager) GetCidVariants(method string) []string {
 }
 
 var onceRpcServerManager = RpcServerManager{
-	AsyncSafeObject: *(helpers.NewAsyncSafeObject()),
-	ResultDirection: newResultDirectionMap(),
-	methods:         make(map[string]*CidSet)}
+	AsyncSafeObject:     *(helpers.NewAsyncSafeObject()),
+	ResultDirectionDict: helpers.NewAsyncStrDict(),
+	ResultBufferDict:    helpers.NewAsyncStrDict(),
+	methods:             make(map[string]*CidSet)}
 
 func NewRpcServerManager() *RpcServerManager {
 	// use as singltone

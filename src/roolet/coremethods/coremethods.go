@@ -145,8 +145,8 @@ func ProcRegistration(handler *coreprocessing.Handler, inIns *coreprocessing.Cor
 					{
 						dict := coreprocessing.NewMethodInstructionDict()
 						methodsCount := dict.RegisterClientMethods(info.Methods...)
-						cidMethods := coreprocessing.NewRpcServerManager()
-						cidMethods.Append(inIns.Cid, &(info.Methods))
+						rpcManager := coreprocessing.NewRpcServerManager()
+						rpcManager.Append(inIns.Cid, &(info.Methods))
 						answer = inIns.MakeOkAnswer(
 							fmt.Sprintf("{\"methods_count\": %d, \"ok\": true}", methodsCount))
 						changes := connectionsupport.StateChanges{
@@ -243,8 +243,8 @@ func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 	errCode := 0
 	// check methods
 	if cmd, exists := inIns.GetCommand(); exists {
-		cidMethods := coreprocessing.NewRpcServerManager()
-		variants := cidMethods.GetCidVariants((*cmd).Method)
+		rpcManager := coreprocessing.NewRpcServerManager()
+		variants := rpcManager.GetCidVariants((*cmd).Method)
 		if len(variants) > 0 {
 			var freeCid string
 			for _, serverCid := range variants {
@@ -261,7 +261,7 @@ func ProcRouteRpc(handler *coreprocessing.Handler, inIns *coreprocessing.CoreIns
 				rllogger.Outputf(rllogger.LogInfo, "rpc call: '%s()' -> %s", (*cmd).Method, data)
 				if strData, err := json.Marshal(data); err == nil {
 					answerData = string(strData)
-					cidMethods.ResultDirection.SetForTask(data.Task, (*inIns).Cid)
+					rpcManager.ResultDirectionDict.Set(data.Task, (*inIns).Cid)
 				} else {
 					errCode = transport.ErrorCodeInternalProblem
 					errStr = fmt.Sprintf("Error dump %T: '%s'", data, err)
@@ -329,11 +329,17 @@ func ProcCallServerMethod(
 
 func ProcResultReturned(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruction) *coreprocessing.CoreInstruction {
 	var answer *transport.Answer
+	var resultChanges *connectionsupport.StateChanges
 	var errStr string
 	insType := coreprocessing.TypeInstructionSkip
 	errCode := 0
 
 	if cmd, exists := inIns.GetCommand(); exists {
+		// return status
+		resultChanges = &(connectionsupport.StateChanges{
+			ChangeType: connectionsupport.StateChangesTypeStatus,
+			Status:     connectionsupport.ClientStatusActive})
+
 		if len((*cmd).Params.Task) < 1 {
 			errCode = transport.ErrorCodeMethodParamsFormatWrong
 			errStr = "Task Id does not exist."
@@ -346,11 +352,13 @@ func ProcResultReturned(handler *coreprocessing.Handler, inIns *coreprocessing.C
 		insType = coreprocessing.TypeInstructionProblem
 		answer = inIns.MakeErrAnswer(errCode, errStr)
 	} else {
+		answer = inIns.MakeOkAnswer(
+			fmt.Sprintf("{\"ok\": true, \"status\": %d}", resultChanges.Status))
 		insType = coreprocessing.TypeInstructionOk
-		answer = inIns.MakeOkAnswer("{\"ok\": true}")
 	}
 	result := coreprocessing.NewCoreInstruction(insType)
 	result.SetAnswer(answer)
+	result.StateChanges = resultChanges
 	return result
 }
 
@@ -362,20 +370,26 @@ func ProcRecordResult(
 	var result []*coreprocessing.CoreInstruction
 	if answer, _ := outIns.GetAnswer(); (*answer).Error.Code == 0 {
 		if srcCmd, hasCmd := inIns.GetCommand(); hasCmd {
-			cidMethods := coreprocessing.NewRpcServerManager()
-			// task ID must placed in prams.data
-			if hasCid, targetCid := cidMethods.ResultDirection.Get((*srcCmd).Params.Data); hasCid {
+			rpcManager := coreprocessing.NewRpcServerManager()
+			taskId := (*srcCmd).Params.Task
+			if targetCidPtr := rpcManager.ResultDirectionDict.Get(taskId); targetCidPtr != nil {
 				// check client group
-				if handler.StateCheker.ClientInGroup(targetCid, connectionsupport.GroupConnectionWsClient) {
-					// TODO: create answer here and return as result
-					// It will be immediately written to web-socket connection 
+				if handler.StateCheker.ClientInGroup(*targetCidPtr, connectionsupport.GroupConnectionWsClient) {
+					cmd := transport.NewCommandWithParams(
+						0, "result", transport.MethodParams{
+							Cid:  *targetCidPtr,
+							Task: taskId,
+							Json: (*srcCmd).Params.Json})
+					clientIns := coreprocessing.NewCoreInstruction(coreprocessing.TypeInstructionResult)
+					clientIns.SetCommand(cmd)
+					result = make([]*coreprocessing.CoreInstruction, 1)
+					result[0] = clientIns
 				} else {
-					/// TODO:
-					// write result to heap
+					rpcManager.ResultBufferDict.Set(taskId, (*srcCmd).Params.Json)
 				}
 			} else {
 				rllogger.Outputf(rllogger.LogError, "Processing pass for: %s", srcCmd)
-			}			
+			}
 		}
 	}
 	return result
