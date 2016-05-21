@@ -10,11 +10,11 @@ from .enums import AnswerErrorCode
 
 JSON_RPC_VERSION = '2.0'
 # TODO: replace from options
-encode = "utf-8"
+encoding = "utf-8"
 
 
 def _b64_convert(content):
-    return (content or b'').decode(encode)
+    return (content or b'').decode(encoding)
 
 
 class DataFormatError(Exception):
@@ -144,7 +144,7 @@ class Command(BaseTransportUnit):
         assert isinstance(params, dict)
         self.task = params.get('task')
         self.cid = params.get('cid')
-        self._data = (params.get('data') or '').encode(encode)
+        self._data = (params.get('data') or '').encode(encoding)
         self._json = params.get('json')
 
     @property
