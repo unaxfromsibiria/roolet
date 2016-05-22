@@ -22,9 +22,8 @@ import (
 func Check(key *rsa.PublicKey, token string) error {
 	parts := strings.Split(token, ".")
 	if len(parts) == 3 {
-		if sigDta, err := base64.StdEncoding.DecodeString(parts[2]); err == nil {
-			sig := string(sigDta)
-			if err := jwt.SigningMethodRS256.Verify(strings.Join(parts[0:2], "."), sig, key); err != nil {
+		if _, err := base64.URLEncoding.DecodeString(parts[2]); err == nil {
+			if err := jwt.SigningMethodRS256.Verify(strings.Join(parts[0:2], "."), parts[2], key); err != nil {
 				return err
 			}
 		} else {
@@ -47,7 +46,6 @@ func JwtCreate(data string, option *options.SysOption) {
 
 			sig, err := jwt.SigningMethodRS256.Sign(strings.Join(data, "."), key)
 			if err == nil {
-				sig = base64.StdEncoding.EncodeToString([]byte(sig))
 				log.Printf(
 					"\nSignature: %s\n\nToken: %s\n",
 					sig,

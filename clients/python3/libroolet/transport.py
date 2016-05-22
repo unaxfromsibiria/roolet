@@ -217,6 +217,12 @@ class Answer(BaseTransportUnit):
         else:
             raise DataFormatError('Error data format error.')
 
+    def result_as_json(self):
+        try:
+            return json.loads(self.result or 'null')
+        except ValueError:
+            pass
+
 
 class UnitBuilder(object):
 

@@ -13,12 +13,18 @@ from random import SystemRandom
 from .common import Configuration
 from .transport import Answer, Command, UnitBuilder, encoding
 
+_random_part_size = 64
+
 
 class ServerError(Exception):
 
     def __init__(self, code, message):
         super(ServerError, self).__init__(
             'Server error "{}": {}'.format(code, message))
+
+
+class ProtocolError(Exception):
+    pass
 
 
 class Connection(object):
@@ -28,6 +34,7 @@ class Connection(object):
     _conn = None
     _sleep = None
     _min_buf_size = 1024
+    _auth = False
 
     @classmethod
     @contextmanager
@@ -64,20 +71,23 @@ class Connection(object):
             with open(priv_key_path, 'r') as key_file:
                 priv_rsakey = key_file.read()
                 algorithms = get_default_algorithms()
+                # 2 random parts
                 segments = [
-                    base64.encodebytes(''.join(
-                        chr(rand.randint(48, 123)) for _ in range(64)
-                    ).encode(encoding=encoding)),
-                    base64.encodebytes(''.join(
-                        chr(rand.randint(48, 123)) for _ in range(64)
-                    ).encode(encoding=encoding)),
+                    base64.urlsafe_b64encode(''.join(
+                        # get ascii from [48, 122]
+                        chr(rand.randint(48, 123))
+                        for _ in range(_random_part_size)
+                    ).encode(encoding=encoding))
+                    for _ in range(2)
                 ]
                 algorithm = conf.get('crypto_algorithm')
                 try:
                     alg_obj = algorithms[algorithm]
                     signature = alg_obj.sign(
-                        b'.'.join(segments), alg_obj.prepare_key(priv_rsakey))
-                    segments.append(base64.encodebytes(signature))
+                        b'.'.join(segments),
+                        alg_obj.prepare_key(priv_rsakey))
+
+                    segments.append(base64.urlsafe_b64encode(signature))
                     auth_data = b'.'.join(segments)
 
                 except KeyError:
@@ -133,6 +143,19 @@ class Connection(object):
                     serv_err = ServerError(**err)
                     logger.fatal(serv_err)
                     raise serv_err
+
+                answer = answer.result_as_json()
+                if isinstance(answer, dict) and 'auth' in answer:
+                    self._auth = bool(answer.get('auth'))
+                    if self._auth:
+                        logger.info('Authorization completed.')
+                    else:
+                        logger.error('Authorization failed.')
+                        return
+                else:
+                    raise ProtocolError(
+                        'Auth answer data has unknown format: "{}".'.format(
+                            answer.result))
 
                 # send group info
                 # TODO
