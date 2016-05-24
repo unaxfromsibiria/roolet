@@ -117,6 +117,9 @@ class BaseTransportUnit(object):
 
         return json.dumps(result)
 
+    def as_data(self, ln=True):
+        return ('{}\n' if ln else '{}').format(self.as_json())
+
 
 class Command(BaseTransportUnit):
 

@@ -6,11 +6,17 @@ from enum import Enum
 
 
 class AnswerErrorCode(Enum):
-    ErrorCodeInternalProblem = 1
-    ErrorCodeCommandFormatWrong = 2
-    ErrorCodeMethodParamsFormatWrong = 3
-    ErrorCodeMethodAuthFailed = 4
-    ErrorCodeAccessDenied = 5
-    ErrorCodeUnexpectedValue = 6
-    ErrorCodeRemouteMethodNotExists = 7
-    ErrorCodeAllServerBusy = 8
+    InternalProblem = 1
+    CommandFormatWrong = 2
+    MethodParamsFormatWrong = 3
+    MethodAuthFailed = 4
+    AccessDenied = 5
+    UnexpectedValue = 6
+    RemouteMethodNotExists = 7
+    AllServerBusy = 8
+
+
+class GroupConnectionEnum(Enum):
+    Server = 1
+    Client = 2
+    WsClient = 3

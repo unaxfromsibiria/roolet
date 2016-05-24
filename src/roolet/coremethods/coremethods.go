@@ -132,6 +132,7 @@ func ProcRegistration(handler *coreprocessing.Handler, inIns *coreprocessing.Cor
 		info := ClientInfo{}
 		if loadErr := json.Unmarshal([]byte((*cmd).Params.Json), &info); loadErr == nil {
 			if (*handler).StateCheker.IsAuth(inIns.Cid) {
+				// TODO: need implimentation for replace current cid to old
 				switch info.Group {
 				case connectionsupport.GroupConnectionClient:
 					{
@@ -139,7 +140,8 @@ func ProcRegistration(handler *coreprocessing.Handler, inIns *coreprocessing.Cor
 							ChangeType:            connectionsupport.StateChangesTypeGroup,
 							ConnectionClientGroup: connectionsupport.GroupConnectionClient}
 						resultChanges = &changes
-						answer = inIns.MakeOkAnswer("{\"ok\": true}")
+						answer = inIns.MakeOkAnswer(
+							fmt.Sprintf("{\"ok\": true, \"cid\": \"%s\"}", inIns.Cid))
 					}
 				case connectionsupport.GroupConnectionServer:
 					{
@@ -148,7 +150,10 @@ func ProcRegistration(handler *coreprocessing.Handler, inIns *coreprocessing.Cor
 						rpcManager := coreprocessing.NewRpcServerManager()
 						rpcManager.Append(inIns.Cid, &(info.Methods))
 						answer = inIns.MakeOkAnswer(
-							fmt.Sprintf("{\"methods_count\": %d, \"ok\": true}", methodsCount))
+							fmt.Sprintf(
+								"{\"methods_count\": %d, \"ok\": true, \"cid\": \"%s\"}",
+								methodsCount, inIns.Cid))
+
 						changes := connectionsupport.StateChanges{
 							ChangeType:            connectionsupport.StateChangesTypeGroup,
 							ConnectionClientGroup: connectionsupport.GroupConnectionServer}
