@@ -15,14 +15,15 @@ const (
 	TypeInstructionOk      = 2
 	TypeInstructionExit    = 10
 	// turnoff it after
-	TypeInstructionPing     = 20
-	TypeInstructionAuth     = 30
-	TypeInstructionPong     = 40
-	TypeInstructionStatus   = 50
-	TypeInstructionReg      = 55
-	TypeInstructionExternal = 100
-	TypeInstructionExecute  = 110
-	TypeInstructionResult   = 120
+	TypeInstructionPing      = 20
+	TypeInstructionAuth      = 30
+	TypeInstructionPong      = 40
+	TypeInstructionStatus    = 50
+	TypeInstructionReg       = 55
+	TypeInstructionExternal  = 100
+	TypeInstructionExecute   = 110
+	TypeInstructionSetResult = 120
+	TypeInstructionGetResult = 130
 )
 
 type CoreInstruction struct {
@@ -128,7 +129,7 @@ type RpcServerManager struct {
 	ResultDirectionDict *helpers.AsyncStrDict
 	// <cid direction>: <data>
 	ResultBufferDict *helpers.AsyncStrDict
-	methods map[string]*CidSet
+	methods          map[string]*CidSet
 }
 
 func (manager *RpcServerManager) Append(cid string, methods *[]string) {
@@ -194,7 +195,8 @@ var onceMethodInstructionDict MethodInstructionDict = MethodInstructionDict{
 		"auth":         TypeInstructionAuth,
 		"registration": TypeInstructionReg,
 		"statusupdate": TypeInstructionStatus,
-		"result":       TypeInstructionResult,
+		"result":       TypeInstructionSetResult,
+		"getresult":    TypeInstructionGetResult,
 		"ping":         TypeInstructionPing,
 		"quit":         TypeInstructionExit,
 		"exit":         TypeInstructionExit}}

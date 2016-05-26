@@ -2,6 +2,7 @@
 # @email: linkofwise@gmail.com
 # @github: unaxfromsibiria
 
+import asyncio
 import base64
 import socket
 import time
@@ -11,7 +12,7 @@ from jwt.algorithms import get_default_algorithms
 from random import SystemRandom
 
 from .common import Configuration
-from .enums import GroupConnectionEnum
+from .enums import GroupConnectionEnum, AnswerErrorCode
 from .transport import Answer, Command, UnitBuilder, encoding
 
 _random_part_size = 64
@@ -29,6 +30,8 @@ class ProtocolError(Exception):
 
 
 class Connection(object):
+
+    socket_cls = socket.socket
 
     _conf = None
     _group = None
@@ -48,6 +51,7 @@ class Connection(object):
              cls,
              group=GroupConnectionEnum.Client,
              conf=None,
+             close_after=True,
              sleep_method=time.sleep):
         """
         """
@@ -61,7 +65,7 @@ class Connection(object):
             connection.up()
             yield connection
         finally:
-            if connection:
+            if connection and close_after:
                 connection.close()
 
     def __init__(self, config, group):
@@ -83,20 +87,28 @@ class Connection(object):
 
     def request(self, cmd, do_raise=True):
         assert not self._answer_builder.is_done()
-        self._conn.send(cmd.as_data().encode(encoding=encoding))
-        while not self._answer_builder.is_done():
-            answer_data = self._conn.recv(self._min_buf_size)
-            if answer_data:
-                self._answer_builder.append(answer_data.decode(encoding))
+        try:
+            if self._cid:
+                cmd.cid = self._cid
 
-        answer = self._answer_builder.get_unit()
-        err = answer.error
+            self._conn.send(cmd.as_data().encode(encoding=encoding))
+            while not self._answer_builder.is_done():
+                answer_data = self._conn.recv(self._min_buf_size)
+                if answer_data:
+                    self._answer_builder.append(answer_data.decode(encoding))
+        except (ConnectionRefusedError, ConnectionAbortedError) as err:
+            self._logger.error(err)
+            self._conn = answer = None
+        else:
+            answer = self._answer_builder.get_unit()
+            err = answer.error
 
-        if err and err.get('code'):
-            serv_err = ServerError(**err)
-            self._logger.fatal(serv_err)
-            if do_raise:
-                raise serv_err
+            if err and err.get('code'):
+                serv_err = ServerError(**err)
+                self._logger.fatal(serv_err)
+                if do_raise:
+                    raise serv_err
+
         return answer
 
     def up(self):
@@ -142,7 +154,7 @@ class Connection(object):
 
         logger.info(
             'Connection to {addr}:{port}...'.format(**conf))
-        conn = socket.socket()
+        conn = self.socket_cls()
         active = False
         reconnect_delay = self._conf.get('reconnect_delay')
 
@@ -174,8 +186,12 @@ class Connection(object):
                         if self._auth:
                             logger.info('Authorization completed.')
                         else:
-                            logger.error('Authorization failed.')
-                            return
+                            logger.error(
+                                'Authorization answer incorrect: {}'.format(
+                                    answer._result))
+                            raise ServerError(
+                                AnswerErrorCode.IncorrectFormat.value,
+                                'Authorization answer data incorrect.')
                     else:
                         raise ProtocolError(
                             'Auth answer data has unknown format: {}.'.format(
@@ -204,3 +220,75 @@ class Connection(object):
         except:
             self._conn = None
             raise
+
+
+class RpcClient(object):
+    _connection = None
+    _iter_wait = 0.2
+    _timeout = 60
+
+    def __init__(self, asyncio_mode=False, **options):
+        conn_options = {
+            'close_after': False,
+        }
+        if options:
+            conn_options['conf'] = Configuration(env_var=None, **options)
+
+        if asyncio_mode:
+            conn_options['sleep_method'] = asyncio.sleep
+
+        with Connection.open(**conn_options) as conn:
+            self._connection = conn
+
+    def call(self, method, params, sync=True):
+        cmd = Command(data=params, method=method)
+        answer = self._connection.request(cmd, do_raise=False)
+        err = answer.error
+        if err:
+            return err
+        else:
+            result = answer.result
+            if isinstance(result, dict) and 'task' in result:
+                task_id = result.get('task')
+                if sync:
+                    # wait
+                    result = None
+                    cmd = Command(task=task_id, method='getresult')
+                    delay, wait_time = map(
+                        float, (self._iter_wait, self._timeout))
+
+                    while not result:
+                        answer = self._connection.request(cmd, do_raise=False)
+                        err = answer.error
+                        if err:
+                            return err
+
+                        result = answer.result
+                        if isinstance(result, dict):
+                            if result.get('exists'):
+                                return result.get('data')
+                            else:
+                                result = None
+                        else:
+                            self._connection._logger.warning(answer._result)
+                            return {
+                                'code': AnswerErrorCode.IncorrectFormat.value,
+                                'message': (
+                                    'Incorrect result data format '
+                                    'for task "{}".').format(task_id),
+                            }
+
+                        wait_time -= delay
+                        if wait_time <= 0:
+                            return {
+                                'code': AnswerErrorCode.ResultTimeout.value,
+                                'message': (
+                                    'Result waiting time limit extended.'),
+                            }
+                        # time for server processing
+                        self._connection._sleep(delay)
+            else:
+                return {
+                    'code': AnswerErrorCode.IncorrectFormat.value,
+                    'message': 'Incorrect task information returned.',
+                }

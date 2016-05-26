@@ -385,7 +385,7 @@ func ProcRecordResult(
 							Cid:  *targetCidPtr,
 							Task: taskId,
 							Json: (*srcCmd).Params.Json})
-					clientIns := coreprocessing.NewCoreInstruction(coreprocessing.TypeInstructionResult)
+					clientIns := coreprocessing.NewCoreInstruction(coreprocessing.TypeInstructionSetResult)
 					clientIns.SetCommand(cmd)
 					result = make([]*coreprocessing.CoreInstruction, 1)
 					result[0] = clientIns
@@ -406,5 +406,5 @@ func Setup() {
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionReg, ProcRegistration, nil)
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionStatus, ProcUpdateStatus, nil)
 	coreprocessing.SetupMethod(coreprocessing.TypeInstructionExternal, ProcRouteRpc, ProcCallServerMethod)
-	coreprocessing.SetupMethod(coreprocessing.TypeInstructionResult, ProcResultReturned, ProcRecordResult)
+	coreprocessing.SetupMethod(coreprocessing.TypeInstructionSetResult, ProcResultReturned, ProcRecordResult)
 }
