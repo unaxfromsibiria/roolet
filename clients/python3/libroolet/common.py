@@ -10,6 +10,12 @@ import sys
 ENV_PATH_VAR = 'ROOLET_CONG'
 
 
+def get_object_path(obj):
+    if not obj:
+        raise ValueError('Empty value.')
+    return '{}.{}'.format(obj.__module__, obj.__name__)
+
+
 def _default_log_formater(console_handler, file_handler):
     if console_handler:
         _format = (

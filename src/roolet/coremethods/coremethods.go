@@ -64,7 +64,8 @@ func ProcPing(handler *coreprocessing.Handler, inIns *coreprocessing.CoreInstruc
 	var result string
 	if cmd, exists := inIns.GetCommand(); exists {
 		insType = coreprocessing.TypeInstructionPong
-		result = fmt.Sprint(len(cmd.Params.Data) + len(cmd.Params.Json))
+		result = fmt.Sprintf(
+			"{\"data\": %d, \"exists\": true}", len(cmd.Params.Data) + len(cmd.Params.Json))
 	} else {
 		insType = coreprocessing.TypeInstructionSkip
 	}

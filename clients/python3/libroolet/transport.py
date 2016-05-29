@@ -220,6 +220,9 @@ class Answer(BaseTransportUnit):
         else:
             raise DataFormatError('Error data format error.')
 
+    def has_error(self):
+        return (self._error_code or 0) > 0
+
     def result_as_json(self):
         try:
             return json.loads(self.result or 'null')

@@ -101,9 +101,7 @@ class Connection(object):
             self._conn = answer = None
         else:
             answer = self._answer_builder.get_unit()
-            err = answer.error
-
-            if err and err.get('code'):
+            if answer and answer.has_error():
                 serv_err = ServerError(**err)
                 self._logger.fatal(serv_err)
                 if do_raise:
@@ -240,17 +238,25 @@ class RpcClient(object):
         with Connection.open(**conn_options) as conn:
             self._connection = conn
 
+    def close(self):
+        self._connection.close()
+
     def call(self, method, params, sync=True):
         cmd = Command(data=params, method=method)
         answer = self._connection.request(cmd, do_raise=False)
-        err = answer.error
-        if err:
-            return err
+
+        if answer.has_error():
+            return answer.err
         else:
             result = answer.result
-            if isinstance(result, dict) and 'task' in result:
+
+            if isinstance(result, dict):
                 task_id = result.get('task')
-                if sync:
+                if 'data' in result:
+                    # it's immediately answer
+                    return result.get('data')
+
+                elif sync and task_id:
                     # wait
                     result = None
                     cmd = Command(task=task_id, method='getresult')
@@ -259,16 +265,15 @@ class RpcClient(object):
 
                     while not result:
                         answer = self._connection.request(cmd, do_raise=False)
-                        err = answer.error
-                        if err:
-                            return err
+                        if answer.has_error():
+                            return answer.error
 
                         result = answer.result
                         if isinstance(result, dict):
                             if result.get('exists'):
                                 return result.get('data')
                             else:
-                                result = None
+                                return
                         else:
                             self._connection._logger.warning(answer._result)
                             return {
@@ -287,6 +292,8 @@ class RpcClient(object):
                             }
                         # time for server processing
                         self._connection._sleep(delay)
+                else:
+                    return task_id
             else:
                 return {
                     'code': AnswerErrorCode.IncorrectFormat.value,
