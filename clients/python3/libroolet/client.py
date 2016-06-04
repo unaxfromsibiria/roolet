@@ -45,6 +45,53 @@ class Connection(object):
 
     __registration_data = {}
 
+    @staticmethod
+    def prepare_auth_token(conf, silently=False):
+        assert isinstance(conf, Configuration)
+        priv_key_path = conf.get('crypto_priv_key_path')
+        rand = SystemRandom()
+        logger = conf.get_logger()
+        auth_data = None
+        try:
+            with open(priv_key_path, 'r') as key_file:
+                priv_rsakey = key_file.read()
+                algorithms = get_default_algorithms()
+                # 2 random parts
+                segments = [
+                    base64.urlsafe_b64encode(''.join(
+                        # get ascii from [48, 122]
+                        chr(rand.randint(48, 123))
+                        for _ in range(_random_part_size)
+                    ).encode(encoding=encoding))
+                    for _ in range(2)
+                ]
+                algorithm = conf.get('crypto_algorithm')
+                try:
+                    alg_obj = algorithms[algorithm]
+                    signature = alg_obj.sign(
+                        b'.'.join(segments),
+                        alg_obj.prepare_key(priv_rsakey))
+
+                    segments.append(base64.urlsafe_b64encode(signature))
+                    auth_data = b'.'.join(segments)
+
+                except KeyError:
+                    if not silently:
+                        raise NotImplementedError(
+                            'Algorithm "{}" not supported.'.format(algorithm))
+
+        except (TypeError, FileNotFoundError, PermissionError) as err:
+            logger.fatal(
+                'Can not use private key "{}", error: {}'.format(
+                    priv_key_path, err))
+
+            if not silently:
+                raise
+        else:
+            logger.debug('auth data: {}'.format(auth_data))
+
+        return auth_data
+
     @classmethod
     @contextmanager
     def open(
@@ -102,6 +149,7 @@ class Connection(object):
         else:
             answer = self._answer_builder.get_unit()
             if answer and answer.has_error():
+                err = answer.error
                 serv_err = ServerError(**err)
                 self._logger.fatal(serv_err)
                 if do_raise:
@@ -113,42 +161,7 @@ class Connection(object):
         conf = self._conf
         logger = self._logger
         # check and get crypto
-        priv_key_path = conf.get('crypto_priv_key_path')
-        rand = SystemRandom()
-        try:
-            with open(priv_key_path, 'r') as key_file:
-                priv_rsakey = key_file.read()
-                algorithms = get_default_algorithms()
-                # 2 random parts
-                segments = [
-                    base64.urlsafe_b64encode(''.join(
-                        # get ascii from [48, 122]
-                        chr(rand.randint(48, 123))
-                        for _ in range(_random_part_size)
-                    ).encode(encoding=encoding))
-                    for _ in range(2)
-                ]
-                algorithm = conf.get('crypto_algorithm')
-                try:
-                    alg_obj = algorithms[algorithm]
-                    signature = alg_obj.sign(
-                        b'.'.join(segments),
-                        alg_obj.prepare_key(priv_rsakey))
-
-                    segments.append(base64.urlsafe_b64encode(signature))
-                    auth_data = b'.'.join(segments)
-
-                except KeyError:
-                    raise NotImplementedError(
-                        'Algorithm "{}" not supported.'.format(algorithm))
-
-        except (TypeError, FileNotFoundError, PermissionError) as err:
-            logger.fatal(
-                'Can not use private key "{}", error: {}'.format(
-                    priv_key_path, err))
-            raise
-        else:
-            logger.debug('auth data: {}'.format(auth_data))
+        auth_data = self.prepare_auth_token(conf)
 
         logger.info(
             'Connection to {addr}:{port}...'.format(**conf))

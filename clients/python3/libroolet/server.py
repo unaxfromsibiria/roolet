@@ -4,14 +4,16 @@
 
 import asyncio
 import weakref
+import signal
 
 from collections import defaultdict
 from copy import copy
 from functools import wraps
 
-from .client import Connection as BaseConnection
+from .client import Connection, ServerError, ProtocolError
 from .common import (
     Configuration, MetaOnceObject, get_object_path)
+from .transport import Command, Answer, UnitBuilder, encoding
 
 
 class MethodRegistry(object):
@@ -165,46 +167,169 @@ def rpc_method_wraper(**options):
     return method_decor
 
 
-class Connection(BaseConnection):
-    pass
-
-
 class Server(object):
-    _connection = None
     # multiprocessing group size
     _worker_pool_size = 2
+    _income_queue = None
+    _outcome_queue = None
+    _conf = None
+    _close_loop_after = True
+    _event_loop = None
+    _state = None
+    _conn_reader = _conn_writer = None
+    _buffer_size = 1024
+    _reconnect_time = 2.5
 
-    def __init__(self, asyncio_mode=False, **options):
-        conn_options = {
-            'close_after': False,
-        }
+    _handlers = {}
+
+    __tmp = {}
+
+    def __init__(
+            self,
+            event_loop=None,
+            close_loop_after=True,
+            unit_builder_cls=UnitBuilder,
+            **options):
+        """
+        """
+
+        if event_loop is None:
+            event_loop = asyncio.get_event_loop()
+            close_loop_after = True
+
         if options:
             conf = Configuration(env_var=None, **options)
-            worker_pool_size = conf.get('workers')
         else:
-            worker_pool_size = options.get('workers')
+            conf = Configuration()
 
-        self._worker_pool_size = int(
-            worker_pool_size or self._worker_pool_size)
+        self.__tmp['auth_data'] = Connection.prepare_auth_token(conf)
+        self._conf = conf
+        self._event_loop = event_loop
+        self._close_loop_after = close_loop_after
+        self.answer_builder = unit_builder_cls(Answer)
+        # crypto data
 
-        if asyncio_mode:
-            conn_options['sleep_method'] = asyncio.sleep
+    def is_connected(self):
+        return bool(self._state.get('connected'))
 
-        with Connection.open(**conn_options) as conn:
-            self._connection = conn
+    def close(self):
+        if self._close_loop_after:
+            self._event_loop.close()
 
-        self._start_manage_thread()
-        self._start_connection_service_thread()
-        self._start_workers()
+    def connect(self):
+        conf = self._conf
+        logger = conf.get_logger()
+        has_connect = False
+        logger.info('Connected to {addr}:{port}'.format(**conf.as_dict()))
+        while not has_connect:
+            try:
+                result = yield from asyncio.open_connection(
+                    conf.get('addr'),
+                    int(conf.get('port')),
+                    loop=self._event_loop)
+            except Exception as err:
+                logger.error(err)
+                has_connect = not self._state.get('active')
+                self._state['connected'] = False
+                yield from asyncio.sleep(self._reconnect_time)
+            else:
+                has_connect = True
+                self._state['connected'] = True
+                logger.info('connection establishment')
+                if 'auth_data' not in self.__tmp:
+                    self.__tmp['auth_data'] = Connection.prepare_auth_token(conf)
 
-    def _start_manage_thread(self):
-        pass
+                return result
 
-    def _start_connection_service_thread(self):
-        pass
+    def _init_server(self, conf, logger, reader, writer):
+        result = False
+        cmd = Command(
+            method='auth',
+            cid=self._state.get('cid'),
+            _data=self.__tmp.pop('auth_data'),
+            json={'key': conf.get('crypto_pub_key_name')})
 
-    def _start_workers(self):
-        pass
+        writer.write(cmd.as_data().encode(encoding=encoding))
+        answer_builder = self.answer_builder
+        while not answer_builder.is_done():
+            data = yield from reader.read(self._buffer_size)
+            if data:
+                answer_builder.append(data.decode(encoding))
+
+        answer = answer_builder.get_unit()
+        if answer and answer.has_error():
+            err = answer.error
+            serv_err = ServerError(**err)
+            logger.fatal(serv_err)
+        else:
+            answer_data = answer.result_as_json()
+            if isinstance(answer_data, dict) and 'auth' in answer_data:
+                result = bool(answer_data.get('auth'))
+            else:
+                raise ProtocolError(
+                    'Auth answer data has unknown format: {}.'.format(
+                        answer.result))
+
+        if result:
+            # TODO: setup cid, send command 'registration'
+            pass
+
+        return result
+
+    def run(self):
+        iter_delay = 0.1
+
+        @asyncio.coroutine
+        def manage_worker(server):
+            logger = server._conf.get_logger()
+            logger.info('Wait command')
+            while server._state['active']:
+                yield from asyncio.sleep(iter_delay)
+
+            logger.info('Server stopping...')
+
+        self._state = server_state = {'active': True}
+
+        def stop_sig_handler(*args, **kwargs):
+            server_state['active'] = False
+
+        signal.signal(signal.SIGTERM, stop_sig_handler)
+        signal.signal(signal.SIGINT, stop_sig_handler)
+
+        @asyncio.coroutine
+        def connection_service_worker(server):
+            assert isinstance(server, Server)
+            conf = self._conf
+            logger = conf.get_logger()
+            logger.info('Up connection..')
+
+            while server._state['active']:
+                try:
+                    reader, writer = yield from server.connect()
+                except TypeError:
+                    yield from asyncio.sleep(iter_delay)
+                else:
+                    if server._init_server(conf, logger, reader, writer):
+                        logger.info('Authorization completed.')
+                        # processing loop
+                        while server._state['active']:
+                            # TODO: wait output Queue
+                            # TODO: wait command to input Queue
+                            # TODO: get exception of broken connection
+                            # and goto prev yield for new reader, writer
+                            yield from asyncio.sleep(1)
+
+                    else:
+                        server._state['active'] = False
+                        logger.error(
+                            'Authorization answer incorrect.')
+
+        loop = self._event_loop
+        workers = [
+            asyncio.async(connection_service_worker(self), loop=loop),
+            asyncio.async(manage_worker(self), loop=loop),
+        ]
+        loop.run_until_complete(asyncio.wait(workers))
 
 
 # TODO: exchange by multiprocessing.Queue
