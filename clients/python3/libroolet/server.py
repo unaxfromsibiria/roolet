@@ -13,12 +13,16 @@ from functools import wraps
 from .client import Connection, ServerError, ProtocolError
 from .common import (
     Configuration, MetaOnceObject, get_object_path)
+from .enums import GroupConnectionEnum
 from .transport import Command, Answer, UnitBuilder, encoding
 
 
-class MethodRegistry(object):
+class NotReadyError(Exception):
+    pass
 
-    __metaclass__ = MetaOnceObject
+
+class MethodRegistry(metaclass=MetaOnceObject):
+
     __methods = None
     # {method_path: method}
     __run_options = None
@@ -38,6 +42,13 @@ class MethodRegistry(object):
         self.__methods = {}
         self.__run_options = defaultdict(dict)
 
+    @classmethod
+    def is_empty(cls):
+        reg = cls()
+
+        return not any(
+            callable(reg.get(method)[0]) for method in reg.methods_list)
+
     def options_update(self, method, **options):
         if callable(method) or isinstance(method, str) and method:
             if not isinstance(method, str):
@@ -50,7 +61,7 @@ class MethodRegistry(object):
     def set(self, target_method, call_method, **options):
         if callable(target_method) and callable(call_method):
             method_path = get_object_path(target_method)
-            self.__methods[method_path] = weakref.WeakMethod(call_method)
+            self.__methods[method_path] = call_method
             if options:
                 self.options_update(method_path, **options)
         else:
@@ -70,7 +81,14 @@ class MethodRegistry(object):
 
         options = copy(self._default_run_options)
         options.update(self.__run_options.get(method) or {})
-        return self.__methods.get(method), options
+        method = self.__methods.get(method)
+        if not callable(method):
+            method = None
+        return method, options
+
+    @property
+    def methods_list(self):
+        return list(self.__methods.keys())
 
 
 def rpc_method_wraper(**options):
@@ -193,6 +211,10 @@ class Server(object):
         """
         """
 
+        if MethodRegistry.is_empty():
+            raise NotReadyError(
+                'No one public method. Server must have methods.')
+
         if event_loop is None:
             event_loop = asyncio.get_event_loop()
             close_loop_after = True
@@ -245,7 +267,6 @@ class Server(object):
         result = False
         cmd = Command(
             method='auth',
-            cid=self._state.get('cid'),
             _data=self.__tmp.pop('auth_data'),
             json={'key': conf.get('crypto_pub_key_name')})
 
@@ -266,13 +287,46 @@ class Server(object):
             if isinstance(answer_data, dict) and 'auth' in answer_data:
                 result = bool(answer_data.get('auth'))
             else:
-                raise ProtocolError(
+                logger.error(
                     'Auth answer data has unknown format: {}.'.format(
                         answer.result))
 
         if result:
-            # TODO: setup cid, send command 'registration'
-            pass
+            result = False
+            client_info = {
+                'group': GroupConnectionEnum.Server.value,
+                'methods': MethodRegistry().methods_list,
+            }
+            logger.info(
+                'Public methods: {}'.format(
+                    ', '.join(map('"{}"'.format, client_info['methods']))))
+
+            cmd = Command(
+                method='registration',
+                # if cid still exists
+                cid=self._state.get('cid'),
+                json=client_info)
+
+            writer.write(cmd.as_data().encode(encoding=encoding))
+            while not answer_builder.is_done():
+                data = yield from reader.read(self._buffer_size)
+                if data:
+                    answer_builder.append(data.decode(encoding))
+
+            answer = answer_builder.get_unit()
+            if answer and answer.has_error():
+                err = answer.error
+                serv_err = ServerError(**err)
+                logger.fatal(serv_err)
+            else:
+                answer_data = answer.result_as_json() or {}
+                if answer_data.get('ok'):
+                    result = True
+                    self._state['cid'] = answer_data.get('cid')
+                else:
+                    logger.error(
+                        'Registration answer format wrong, data: {}'.format(
+                            answer.result))
 
         return result
 
@@ -309,7 +363,10 @@ class Server(object):
                 except TypeError:
                     yield from asyncio.sleep(iter_delay)
                 else:
-                    if server._init_server(conf, logger, reader, writer):
+                    init_done = yield from server._init_server(
+                        conf, logger, reader, writer)
+
+                    if init_done:
                         logger.info('Authorization completed.')
                         # processing loop
                         while server._state['active']:

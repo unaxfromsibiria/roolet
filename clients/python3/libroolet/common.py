@@ -65,9 +65,7 @@ class MetaOnceObject(type):
         return this
 
 
-class Configuration(object):
-
-    __metaclass__ = MetaOnceObject
+class Configuration(metaclass=MetaOnceObject):
 
     default_logger_name = 'roolet'
 
