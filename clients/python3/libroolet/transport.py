@@ -6,7 +6,7 @@ import base64
 import json
 import pickle
 
-from .enums import AnswerErrorCode
+from .enums import AnswerErrorCode, ProcCmdType
 
 JSON_RPC_VERSION = '2.0'
 # TODO: replace from options
@@ -283,3 +283,31 @@ class UnitBuilder(object):
             self._fill(unit)
             self._result = None
         return unit
+
+
+# # internal transport  # #
+class ProcCmd:
+    type = None
+    data = None
+
+    def __init__(self, cmd_type, data=None):
+        if isinstance(cmd_type, ProcCmdType):
+            self.type = cmd_type.value
+        else:
+            self.type = int(cmd_type)
+        self.data = data
+
+    def has_type(self, enum_value):
+        return enum_value.value == self.type
+
+    def get(self, key):
+        if isinstance(self.data, dict):
+            return self.data.get(key)
+
+    @property
+    def index(self):
+        return self.get('index')
+
+    @property
+    def task_id(self):
+        return self.get('task')

@@ -6,6 +6,8 @@ import logging
 import json
 import os
 import sys
+from collections import defaultdict
+from copy import copy
 
 ENV_PATH_VAR = 'ROOLET_CONG'
 
@@ -132,3 +134,76 @@ class Configuration(metaclass=MetaOnceObject):
 
     def get_logger(self):
         return self._logger or logging.getLogger(self._content.get('logger'))
+
+
+class MethodRegistry(metaclass=MetaOnceObject):
+
+    __methods = None
+    # {method_path: method}
+    __run_options = None
+    # method standard options:
+    # {
+    #     'timeout': None,
+    #     'progress': True,
+    #     'logger': False,
+    # }
+    _default_run_options = {
+        'timeout': None,
+        'progress': True,
+        'logger': True,
+    }
+
+    def __init__(self):
+        self.__methods = {}
+        self.__run_options = defaultdict(dict)
+
+    @classmethod
+    def is_empty(cls):
+        reg = cls()
+
+        return not any(
+            callable(reg.get(method)[0]) for method in reg.methods_list)
+
+    def options_update(self, method, **options):
+        if callable(method) or isinstance(method, str) and method:
+            if not isinstance(method, str):
+                method = get_object_path(method)
+            self.__run_options[method].update(**options)
+
+    def setup(self, method, **options):
+        self.set(method, method, **options)
+
+    def set(self, target_method, call_method, **options):
+        if callable(target_method) and callable(call_method):
+            method_path = get_object_path(target_method)
+            self.__methods[method_path] = call_method
+            if options:
+                self.options_update(method_path, **options)
+        else:
+            raise TypeError('Expected a any callable object.')
+
+    def remove(self, method):
+        if callable(method) or isinstance(method, str) and method:
+            if not isinstance(method, str):
+                method = get_object_path(method)
+            if method in self.__methods:
+                del self.__methods[method]
+
+    def get(self, method):
+        if callable(method) or isinstance(method, str) and method:
+            if not isinstance(method, str):
+                method = get_object_path(method)
+
+        options = copy(self._default_run_options)
+        options.update(self.__run_options.get(method) or {})
+        method = self.__methods.get(method)
+        if not callable(method):
+            method = None
+        return method, options
+
+    @property
+    def methods_list(self):
+        return list(self.__methods.keys())
+
+    def as_dict(self):
+        return dict(map(self.get, self.__methods.keys()))
