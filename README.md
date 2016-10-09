@@ -24,3 +24,5 @@ Main features:
 
 
 Being developed...
+
+A long time with broken laptop, too many other tasks now, comeback to here later.
